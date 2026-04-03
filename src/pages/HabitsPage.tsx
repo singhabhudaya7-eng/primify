@@ -26,33 +26,34 @@ export default function HabitsPage() {
   const { goals } = useGoals()
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(INITIAL_FORM)
+  const [createError, setCreateError] = useState('')
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    
+    setCreateError('')
     try {
       await createHabit.mutateAsync({
         ...form,
         goal_id: form.goal_id || undefined,
       })
-      
-      // Reset form after successful creation
       setForm(INITIAL_FORM)
       setShowModal(false)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Form submission error:', err)
-      // Error toast is handled by the mutation's onError
+      setCreateError(err?.message || 'Failed to create habit. Check your connection.')
     }
   }
 
   function handleOpenModal() {
     setForm(INITIAL_FORM)
+    setCreateError('')
     setShowModal(true)
   }
 
   function handleCloseModal() {
     setShowModal(false)
     setForm(INITIAL_FORM)
+    setCreateError('')
   }
 
   return (
@@ -107,7 +108,7 @@ export default function HabitsPage() {
                   <button
                     onClick={() => deleteHabit.mutate(habit.id)}
                     disabled={deleteHabit.isPending}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-[#444] hover:text-red-400 hover:bg-[rgba(255,32,32,0.1)] transition-all disabled:opacity-50"
+                    className="md:opacity-0 md:group-hover:opacity-100 p-1.5 rounded-lg text-[#444] hover:text-red-400 hover:bg-[rgba(255,32,32,0.1)] transition-all disabled:opacity-50"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -208,6 +209,9 @@ export default function HabitsPage() {
               {createHabit.isPending ? 'Creating...' : 'Create Habit'}
             </button>
           </div>
+          {createError && (
+            <p className="text-xs text-red-400 text-center mt-1">{createError}</p>
+          )}
         </form>
       </Modal>
     </div>

@@ -17,9 +17,11 @@ export default function GoalsPage() {
     name: '', description: '', target_value: 100,
     unit: '', emoji: '🎯', deadline: '',
   })
+  const [createError, setCreateError] = useState('')
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
+    setCreateError('')
     try {
       await createGoal.mutateAsync({
         ...form,
@@ -29,8 +31,8 @@ export default function GoalsPage() {
       })
       setShowModal(false)
       setForm({ name: '', description: '', target_value: 100, unit: '', emoji: '🎯', deadline: '' })
-    } catch {
-      // onError handles toast
+    } catch (err: any) {
+      setCreateError(err?.message || 'Failed to create goal. Check your connection.')
     }
   }
 
@@ -89,7 +91,7 @@ export default function GoalsPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => { setEditingProgress(goal.id); setProgressVal(String(goal.current_value)) }}
                       className="p-1.5 rounded-lg text-[#555] hover:text-[#8b85ff] hover:bg-[rgba(108,99,255,0.1)] transition-all"
@@ -170,7 +172,7 @@ export default function GoalsPage() {
       )}
 
       {/* Create modal */}
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="New Goal">
+      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setCreateError('') }} title="New Goal">
         <form onSubmit={handleCreate} className="space-y-4">
           <div>
             <label className="text-xs text-[#666] mb-1.5 block">Icon</label>
@@ -218,11 +220,14 @@ export default function GoalsPage() {
           </div>
 
           <div className="flex gap-2 pt-2">
-            <button type="button" onClick={() => setShowModal(false)} className="btn-ghost flex-1">Cancel</button>
+            <button type="button" onClick={() => { setShowModal(false); setCreateError('') }} className="btn-ghost flex-1">Cancel</button>
             <button type="submit" disabled={createGoal.isPending} className="btn-primary flex-1">
               {createGoal.isPending ? 'Creating...' : 'Set Goal'}
             </button>
           </div>
+          {createError && (
+            <p className="text-xs text-red-400 text-center mt-1">{createError}</p>
+          )}
         </form>
       </Modal>
     </div>

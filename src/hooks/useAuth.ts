@@ -8,43 +8,50 @@ export function useAuth() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    // Use store-level flag so remounts don't re-run init
     if (useAuthStore.getState().initStarted) return
     useAuthStore.setState({ initStarted: true })
 
     const timeoutId = setTimeout(() => {
-      console.warn('[PrimeOS] Auth init timed out')
-      useAuthStore.setState({ isLoading: false, isInitialized: true })
-    }, 5000)
+      console.warn('[PrimeOS] Auth init timed out — forcing unauthenticated state')
+      useAuthStore.setState({
+        user: null, session: null, profile: null,
+        isLoading: false, isInitialized: true,
+        initStarted: false, fetchingProfile: false,
+      })
+    }, 6000)
 
     async function initAuth() {
       console.log('[PrimeOS] Starting auth init...')
       try {
         useAuthStore.setState({ isLoading: true })
-        console.log('[PrimeOS] Calling getSession...')
+        const { data: { session: sess }, error: sessErr } = await supabase.auth.getSession()
 
-        const { data: { session: sess } } = await supabase.auth.getSession()
-        console.log('[PrimeOS] Session result:', sess)
+        if (sessErr) {
+          console.warn('[PrimeOS] getSession error — clearing stale session:', sessErr.message)
+          await supabase.auth.signOut()
+          useAuthStore.setState({ isLoading: false, isInitialized: true })
+          return
+        }
 
         useAuthStore.setState({ session: sess, user: sess?.user ?? null })
 
         if (sess?.user) {
-          console.log('[PrimeOS] Has user, fetching profile...')
           await fetchProfile(sess.user.id)
         } else {
-          console.log('[PrimeOS] No user, going to auth page...')
           useAuthStore.setState({ isLoading: false, isInitialized: true })
         }
       } catch (err) {
         console.error('[PrimeOS] Auth init error:', err)
-        useAuthStore.setState({ isLoading: false, isInitialized: true })
+        useAuthStore.setState({
+          user: null, session: null, profile: null,
+          isLoading: false, isInitialized: true, initStarted: false,
+        })
       } finally {
         clearTimeout(timeoutId)
       }
     }
 
     initAuth()
-
     return () => { clearTimeout(timeoutId) }
   }, [])
 
@@ -63,8 +70,8 @@ export function useAuth() {
           await fetchProfile(session.user.id)
         } else {
           useAuthStore.setState({
-            user: null, session: null, profile: null, isLoading: false,
-            initStarted: false, fetchingProfile: false,
+            user: null, session: null, profile: null,
+            isLoading: false, initStarted: false, fetchingProfile: false,
           })
         }
 
@@ -87,14 +94,8 @@ export function useAuth() {
     useAuthStore.setState({ fetchingProfile: true })
 
     try {
-      console.log('[PrimeOS] Querying profiles table...')
       const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
-
-      console.log('[PrimeOS] Profile result:', { data, error })
+        .from('profiles').select('*').eq('id', userId).single()
 
       if (error && error.code === 'PGRST116') {
         const { data: { user } } = await supabase.auth.getUser()
@@ -102,8 +103,7 @@ export function useAuth() {
           const { data: newProfile } = await supabase
             .from('profiles')
             .insert({ id: user.id, email: user.email!, total_points: 0, level: 1 })
-            .select()
-            .single()
+            .select().single()
           if (newProfile) {
             useAuthStore.setState({ profile: newProfile })
             await bootstrapNewUser(user.id)
@@ -116,7 +116,6 @@ export function useAuth() {
       console.error('[PrimeOS] Profile fetch failed:', err)
     } finally {
       useAuthStore.setState({ fetchingProfile: false, isLoading: false, isInitialized: true })
-      console.log('[PrimeOS] Done — initialized!')
     }
   }
 
@@ -128,16 +127,10 @@ export function useAuth() {
       )
       await supabase.from('game_state').upsert(
         {
-          user_id: userId,
-          dragon_name: 'Ignar the Weak',
-          dragon_hp: 100,
-          dragon_max_hp: 100,
-          dragon_level: 1,
-          dragon_strength: 5,
-          dragon_emoji: '🐲',
-          player_hp: 100,
-          player_max_hp: 100,
-          battles_won: 0,
+          user_id: userId, dragon_name: 'Ignar the Weak',
+          dragon_hp: 100, dragon_max_hp: 100, dragon_level: 1,
+          dragon_strength: 5, dragon_emoji: '🐲',
+          player_hp: 100, player_max_hp: 100, battles_won: 0,
         },
         { onConflict: 'user_id' }
       )
@@ -154,9 +147,7 @@ export function useAuth() {
 
   async function signUp(email: string, password: string, username: string) {
     const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { username } },
+      email, password, options: { data: { username } },
     })
     if (error) throw error
     return data
@@ -169,7 +160,18 @@ export function useAuth() {
   }
 
   async function signOut() {
-    await supabase.auth.signOut()
+    try {
+      // Immediately clear store + navigate — don't wait for Supabase callback
+      useAuthStore.setState({
+        user: null, session: null, profile: null,
+        isLoading: false, initStarted: false, fetchingProfile: false,
+      })
+      navigate('/auth', { replace: true })
+      await supabase.auth.signOut()
+    } catch (err) {
+      console.error('[PrimeOS] Sign out error:', err)
+      navigate('/auth', { replace: true })
+    }
   }
 
   return { ...store, signUp, signIn, signOut }

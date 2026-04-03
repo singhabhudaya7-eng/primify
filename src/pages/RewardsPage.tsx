@@ -14,15 +14,17 @@ export default function RewardsPage() {
   const [showModal, setShowModal] = useState(false)
   const [confirmRedeem, setConfirmRedeem] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', description: '', cost_points: 100, emoji: '🍜' })
+  const [createError, setCreateError] = useState('')
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
+    setCreateError('')
     try {
       await createReward.mutateAsync(form)
       setShowModal(false)
       setForm({ name: '', description: '', cost_points: 100, emoji: '🍜' })
-    } catch {
-      // onError handles toast
+    } catch (err: any) {
+      setCreateError(err?.message || 'Failed to create reward. Check your connection.')
     }
   }
 
@@ -86,7 +88,7 @@ export default function RewardsPage() {
                 {/* Delete button */}
                 <button
                   onClick={() => deleteReward.mutate(reward.id)}
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 rounded text-[#444] hover:text-red-400 transition-all"
+                  className="absolute top-2 right-2 md:opacity-0 md:group-hover:opacity-100 p-1 rounded text-[#444] hover:text-red-400 transition-all"
                 >
                   <Trash2 size={12} />
                 </button>
@@ -122,7 +124,7 @@ export default function RewardsPage() {
       )}
 
       {/* Add reward modal */}
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="New Reward">
+      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setCreateError('') }} title="New Reward">
         <form onSubmit={handleCreate} className="space-y-4">
           <div>
             <label className="text-xs text-[#666] mb-1.5 block">Icon</label>
@@ -153,11 +155,14 @@ export default function RewardsPage() {
               value={form.cost_points} onChange={e => setForm(f => ({ ...f, cost_points: parseInt(e.target.value) || 100 }))} />
           </div>
           <div className="flex gap-2 pt-2">
-            <button type="button" onClick={() => setShowModal(false)} className="btn-ghost flex-1">Cancel</button>
+            <button type="button" onClick={() => { setShowModal(false); setCreateError('') }} className="btn-ghost flex-1">Cancel</button>
             <button type="submit" disabled={createReward.isPending} className="btn-primary flex-1">
               {createReward.isPending ? 'Adding...' : 'Add Reward'}
             </button>
           </div>
+          {createError && (
+            <p className="text-xs text-red-400 text-center mt-1">{createError}</p>
+          )}
         </form>
       </Modal>
 
