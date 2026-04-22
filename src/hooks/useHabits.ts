@@ -5,6 +5,16 @@ import { todayStr, spawnFloatingText, getStreakMultiplier } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type { Habit } from '@/types/database'
 
+function withTimeout<T>(promise: PromiseLike<T>, ms = 15000): Promise<T> {
+  return Promise.race([
+    Promise.resolve(promise),
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Request timed out — check your connection and try again.')), ms)
+    ),
+  ])
+}
+
 export function useHabits() {
   const { user, profile, setProfile } = useAuthStore()
   const qc = useQueryClient()
@@ -124,21 +134,13 @@ export function useHabits() {
       goal_id?: string
       emoji?: string
       frequency?: Habit['frequency']
+      frequency_days?: number
     }) => {
       if (!user?.id) throw new Error('User not authenticated')
 
-      // Wrap in a 15-second timeout so the button never hangs indefinitely
-      const insertPromise = supabase
-        .from('habits')
-        .insert({ user_id: user.id, ...input })
-        .select()
-        .single()
-
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Request timed out — check your connection and try again.')), 15000)
+      const { data, error } = await withTimeout(
+        supabase.from('habits').insert({ user_id: user.id, ...input }).select().single()
       )
-
-      const { data, error } = await Promise.race([insertPromise, timeoutPromise])
 
       if (error) {
         console.error('Create habit error:', error)

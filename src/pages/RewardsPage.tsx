@@ -1,14 +1,14 @@
 import { useState } from 'react'
-import { Plus, Gift, Lock, Trash2, History, Star, Flame, RefreshCw } from 'lucide-react'
+import { Plus, Gift, Lock, Trash2, History, Star, Flame, RefreshCw, Pencil } from 'lucide-react'
 import { useRewards } from '@/hooks/useRewards'
 import { useAuthStore } from '@/lib/store'
 import { useGame } from '@/hooks/useGame'
 import Modal from '@/components/ui/Modal'
 import { cn, formatPoints } from '@/lib/utils'
+import type { Reward } from '@/types/database'
 
 const REWARD_EMOJIS = ['🍜', '😌', '🛍️', '🎮', '🍕', '🎬', '🏖️', '☕', '🎁', '🏆', '🎉', '💆']
 
-// Map cost ranges to item-level descriptions
 function getItemTier(cost: number): { label: string; color: string; glow: string } {
   if (cost >= 2000) return { label: 'Legendary', color: '#ffd933', glow: 'rgba(255,201,0,0.2)' }
   if (cost >= 1000) return { label: 'Epic', color: '#c77dff', glow: 'rgba(199,125,255,0.15)' }
@@ -17,14 +17,13 @@ function getItemTier(cost: number): { label: string; color: string; glow: string
   return              { label: 'Common', color: '#888', glow: 'transparent' }
 }
 
-// Dragon-slayer lore descriptions for common reward types
 function getLoreDescription(name: string, desc?: string): string {
   if (desc) return desc
   const lower = name.toLowerCase()
   if (lower.includes('burrito') || lower.includes('food') || lower.includes('eat') || lower.includes('meal'))
     return 'Epic Level Combat Rations — fuel forged from discipline'
   if (lower.includes('game') || lower.includes('gaming'))
-    return 'Warrior\'s Rest Protocol — recreational combat simulation'
+    return "Warrior's Rest Protocol — recreational combat simulation"
   if (lower.includes('gear') || lower.includes('tech') || lower.includes('buy'))
     return 'Elite Field Equipment — acquired through battle-hardened grind'
   if (lower.includes('cheat') || lower.includes('treat') || lower.includes('snack'))
@@ -36,30 +35,82 @@ function getLoreDescription(name: string, desc?: string): string {
   return 'Hard-earned spoils of war'
 }
 
+const BLANK_FORM = { name: '', description: '', cost_points: 100, emoji: '🍜' }
+type RewardForm = typeof BLANK_FORM
+
 export default function RewardsPage() {
-  const { rewards, isLoading, createReward, redeemReward, deleteReward } = useRewards()
+  const { rewards, isLoading, createReward, editReward, redeemReward, deleteReward } = useRewards()
   const { profile } = useAuthStore()
   const { gameState, convertEnergyToPoints } = useGame()
   const points = profile?.total_points ?? 0
   const energyCurrent = profile?.energy_current ?? 0
   const rewardSlots = gameState?.reward_slots ?? 0
 
-  const [showModal, setShowModal] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [editingReward, setEditingReward] = useState<Reward | null>(null)
   const [confirmRedeem, setConfirmRedeem] = useState<string | null>(null)
-  const [form, setForm] = useState({ name: '', description: '', cost_points: 100, emoji: '🍜' })
-  const [createError, setCreateError] = useState('')
+  const [form, setForm] = useState<RewardForm>(BLANK_FORM)
+  const [formError, setFormError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  function openCreate() {
+    setForm(BLANK_FORM)
+    setFormError('')
+    setShowCreateModal(true)
+  }
+
+  function openEdit(reward: Reward) {
+    setForm({
+      name: reward.name,
+      description: reward.description ?? '',
+      cost_points: reward.cost_points,
+      emoji: reward.emoji,
+    })
+    setFormError('')
+    setEditingReward(reward)
+  }
+
+  function closeModals() {
+    if (isSubmitting) return
+    setShowCreateModal(false)
+    setEditingReward(null)
+    setForm(BLANK_FORM)
+    setFormError('')
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    setCreateError('')
+    setFormError('')
     setIsSubmitting(true)
     try {
-      await createReward.mutateAsync(form)
-      setShowModal(false)
-      setForm({ name: '', description: '', cost_points: 100, emoji: '🍜' })
+      await createReward.mutateAsync({
+        ...form,
+        description: form.description || undefined,
+      })
+      setShowCreateModal(false)
+      setForm(BLANK_FORM)
     } catch (err: any) {
-      setCreateError(err?.message || 'Failed to create reward. Check your connection.')
+      setFormError(err?.message || 'Failed to create reward. Check your connection.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingReward) return
+    setFormError('')
+    setIsSubmitting(true)
+    try {
+      await editReward.mutateAsync({
+        rewardId: editingReward.id,
+        ...form,
+        description: form.description || undefined,
+      })
+      setEditingReward(null)
+      setForm(BLANK_FORM)
+    } catch (err: any) {
+      setFormError(err?.message || 'Failed to update reward.')
     } finally {
       setIsSubmitting(false)
     }
@@ -86,7 +137,7 @@ export default function RewardsPage() {
             <p className="text-xs text-[#666]">Treasury</p>
             <p className="text-xl font-mono font-bold text-[#ffd933]">{formatPoints(points)} pts</p>
           </div>
-          <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-2">
+          <button onClick={openCreate} className="btn-primary flex items-center gap-2">
             <Plus size={16} />
             Add
           </button>
@@ -101,7 +152,7 @@ export default function RewardsPage() {
         </p>
       </div>
 
-      {/* Reward Slots from Dragon Loot */}
+      {/* Dragon Loot Slots */}
       {rewardSlots > 0 && (
         <div className="stat-card border border-[rgba(199,125,255,0.3)] bg-[rgba(199,125,255,0.06)]">
           <div className="flex items-center gap-3 mb-2">
@@ -143,11 +194,7 @@ export default function RewardsPage() {
               onClick={() => convertEnergyToPoints.mutate(Math.floor(energyCurrent / 4) * 4)}
               disabled={convertEnergyToPoints.isPending}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
-              style={{
-                background: 'rgba(139,133,255,0.15)',
-                color: '#b9b5ff',
-                border: '1px solid rgba(139,133,255,0.25)',
-              }}
+              style={{ background: 'rgba(139,133,255,0.15)', color: '#b9b5ff', border: '1px solid rgba(139,133,255,0.25)' }}
             >
               <RefreshCw size={12} />
               {convertEnergyToPoints.isPending ? '...' : 'Convert All'}
@@ -165,7 +212,7 @@ export default function RewardsPage() {
           <div className="text-5xl mb-3">🎁</div>
           <p className="text-[#dddaff] font-medium">No rewards yet</p>
           <p className="text-[#555] text-sm mt-1 mb-4">Define your spoils of war</p>
-          <button onClick={() => setShowModal(true)} className="btn-primary">Add First Reward</button>
+          <button onClick={openCreate} className="btn-primary">Add First Reward</button>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
@@ -175,16 +222,26 @@ export default function RewardsPage() {
             const lore = getLoreDescription(reward.name, reward.description)
             return (
               <div key={reward.id}
-                className={cn('stat-card relative group transition-all', !canAfford && 'opacity-60')}
+                className={cn('stat-card relative group transition-all', !canAfford && 'opacity-70')}
                 style={{ boxShadow: canAfford ? `0 0 12px ${tier.glow}` : undefined }}>
 
-                {/* Delete */}
-                <button
-                  onClick={() => deleteReward.mutate(reward.id)}
-                  className="absolute top-2 right-2 md:opacity-0 md:group-hover:opacity-100 p-1 rounded text-[#444] hover:text-red-400 transition-all"
-                >
-                  <Trash2 size={12} />
-                </button>
+                {/* Action buttons */}
+                <div className="absolute top-2 right-2 flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-all">
+                  <button
+                    onClick={() => openEdit(reward)}
+                    className="p-1 rounded text-[#555] hover:text-[#b9b5ff] hover:bg-[rgba(108,99,255,0.15)] transition-all"
+                    title="Edit reward"
+                  >
+                    <Pencil size={11} />
+                  </button>
+                  <button
+                    onClick={() => deleteReward.mutate(reward.id)}
+                    className="p-1 rounded text-[#444] hover:text-red-400 hover:bg-[rgba(255,32,32,0.1)] transition-all"
+                    title="Delete reward"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </div>
 
                 {/* Tier badge */}
                 <div className="flex items-center gap-1 mb-1.5">
@@ -195,7 +252,7 @@ export default function RewardsPage() {
                 </div>
 
                 <div className="text-3xl mb-1.5">{reward.emoji}</div>
-                <h3 className="font-medium text-[#dddaff] text-sm">{reward.name}</h3>
+                <h3 className="font-medium text-[#dddaff] text-sm pr-10">{reward.name}</h3>
                 <p className="text-xs text-[#555] mt-0.5 line-clamp-2 italic">{lore}</p>
 
                 {reward.times_redeemed > 0 && (
@@ -209,12 +266,10 @@ export default function RewardsPage() {
                   onClick={() => canAfford ? setConfirmRedeem(reward.id) : null}
                   className={cn(
                     'w-full mt-3 py-2 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-1.5',
-                    canAfford
-                      ? 'border hover:opacity-90'
-                      : 'bg-[rgba(255,255,255,0.04)] text-[#555] cursor-not-allowed'
+                    canAfford ? 'border hover:opacity-90' : 'bg-[rgba(255,255,255,0.04)] text-[#555] cursor-not-allowed'
                   )}
                   style={canAfford ? {
-                    background: `${tier.glow}`,
+                    background: tier.glow,
                     color: tier.color,
                     borderColor: `${tier.color}40`,
                   } : undefined}
@@ -228,54 +283,27 @@ export default function RewardsPage() {
         </div>
       )}
 
-      {/* Add reward modal */}
-      <Modal isOpen={showModal} onClose={() => { if (!isSubmitting) { setShowModal(false); setCreateError('') } }} title="New Reward">
-        <form onSubmit={handleCreate} className="space-y-4">
-          <div>
-            <label className="text-xs text-[#666] mb-1.5 block">Icon</label>
-            <div className="flex flex-wrap gap-2">
-              {REWARD_EMOJIS.map(e => (
-                <button key={e} type="button" onClick={() => setForm(f => ({ ...f, emoji: e }))}
-                  className={cn('w-9 h-9 rounded-lg text-lg transition-all',
-                    form.emoji === e ? 'bg-[rgba(108,99,255,0.3)] ring-1 ring-[#5548f5]'
-                    : 'bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)]')}>
-                  {e}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="text-xs text-[#666] mb-1.5 block">Reward name</label>
-            <input className="input-field" placeholder="Eat out, Gaming session, Buy shoes..."
-              value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
-          </div>
-          <div>
-            <label className="text-xs text-[#666] mb-1.5 block">Battle lore (optional)</label>
-            <input className="input-field" placeholder="e.g. Epic Combat Rations, Elite Field Gear..."
-              value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-          </div>
-          <div>
-            <label className="text-xs text-[#666] mb-1.5 block">Cost in points</label>
-            <input type="number" min={1} className="input-field"
-              value={form.cost_points} onChange={e => setForm(f => ({ ...f, cost_points: parseInt(e.target.value) || 100 }))} />
-            <p className="text-xs text-[#555] mt-1">
-              Tier: <span style={{ color: getItemTier(form.cost_points).color }}>{getItemTier(form.cost_points).label}</span>
-              {' '}— Common &lt;200 · Uncommon 200+ · Rare 500+ · Epic 1000+ · Legendary 2000+
-            </p>
-          </div>
-          <div className="flex gap-2 pt-2">
-            <button type="button" onClick={() => { if (!isSubmitting) { setShowModal(false); setCreateError('') } }} className="btn-ghost flex-1">Cancel</button>
-            <button type="submit" disabled={isSubmitting} className="btn-primary flex-1">
-              {isSubmitting ? 'Adding...' : 'Add Reward'}
-            </button>
-          </div>
-          {createError && (
-            <p className="text-xs text-red-400 text-center mt-1">{createError}</p>
-          )}
-        </form>
+      {/* ── Create modal ── */}
+      <Modal isOpen={showCreateModal} onClose={closeModals} title="New Reward">
+        <SharedRewardForm
+          form={form} setForm={setForm}
+          onSubmit={handleCreate} onCancel={closeModals}
+          isSubmitting={isSubmitting} formError={formError}
+          submitLabel="Add Reward"
+        />
       </Modal>
 
-      {/* Confirm redeem modal */}
+      {/* ── Edit modal ── */}
+      <Modal isOpen={!!editingReward} onClose={closeModals} title="Edit Reward">
+        <SharedRewardForm
+          form={form} setForm={setForm}
+          onSubmit={handleEdit} onCancel={closeModals}
+          isSubmitting={isSubmitting} formError={formError}
+          submitLabel="Save Changes"
+        />
+      </Modal>
+
+      {/* ── Confirm redeem modal ── */}
       <Modal isOpen={!!confirmRedeem} onClose={() => setConfirmRedeem(null)} title="Claim Reward?">
         {confirmRedeem && (() => {
           const r = rewards.find(r => r.id === confirmRedeem)
@@ -294,7 +322,9 @@ export default function RewardsPage() {
                 <div className="text-6xl mb-3">{r.emoji}</div>
                 <h3 className="font-display text-xl text-[#dddaff]">{r.name}</h3>
                 <p className="text-xs text-[#666] italic mt-1">{lore}</p>
-                <p className="font-mono text-lg mt-3" style={{ color: tier.color }}>–{formatPoints(r.cost_points)} pts</p>
+                <p className="font-mono text-lg mt-3" style={{ color: tier.color }}>
+                  –{formatPoints(r.cost_points)} pts
+                </p>
                 <p className="text-[#666] text-sm mt-2">You've earned this. Go enjoy your spoils, warrior.</p>
               </div>
               <div className="flex gap-2">
@@ -313,5 +343,66 @@ export default function RewardsPage() {
         })()}
       </Modal>
     </div>
+  )
+}
+
+function SharedRewardForm({ form, setForm, onSubmit, onCancel, isSubmitting, formError, submitLabel }: {
+  form: RewardForm
+  setForm: React.Dispatch<React.SetStateAction<RewardForm>>
+  onSubmit: (e: React.FormEvent) => void
+  onCancel: () => void
+  isSubmitting: boolean
+  formError: string
+  submitLabel: string
+}) {
+  const tier = getItemTier(form.cost_points)
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div>
+        <label className="text-xs text-[#666] mb-1.5 block">Icon</label>
+        <div className="flex flex-wrap gap-2">
+          {REWARD_EMOJIS.map(e => (
+            <button key={e} type="button" onClick={() => setForm(f => ({ ...f, emoji: e }))}
+              className={cn('w-9 h-9 rounded-lg text-lg transition-all',
+                form.emoji === e
+                  ? 'bg-[rgba(108,99,255,0.3)] ring-1 ring-[#5548f5]'
+                  : 'bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)]')}>
+              {e}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs text-[#666] mb-1.5 block">Reward name</label>
+        <input className="input-field" placeholder="Eat out, Gaming session, Buy shoes..."
+          value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
+      </div>
+
+      <div>
+        <label className="text-xs text-[#666] mb-1.5 block">Battle lore (optional)</label>
+        <input className="input-field" placeholder="e.g. Epic Combat Rations, Elite Field Gear..."
+          value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+      </div>
+
+      <div>
+        <label className="text-xs text-[#666] mb-1.5 block">Cost in points</label>
+        <input type="number" min={1} className="input-field"
+          value={form.cost_points}
+          onChange={e => setForm(f => ({ ...f, cost_points: parseInt(e.target.value) || 100 }))} />
+        <p className="text-xs text-[#555] mt-1">
+          Tier: <span style={{ color: tier.color }}>{tier.label}</span>
+          {' '}— Common &lt;200 · Uncommon 200+ · Rare 500+ · Epic 1000+ · Legendary 2000+
+        </p>
+      </div>
+
+      <div className="flex gap-2 pt-2">
+        <button type="button" onClick={onCancel} disabled={isSubmitting} className="btn-ghost flex-1">Cancel</button>
+        <button type="submit" disabled={isSubmitting} className="btn-primary flex-1">
+          {isSubmitting ? 'Saving...' : submitLabel}
+        </button>
+      </div>
+      {formError && <p className="text-xs text-red-400 text-center mt-1">{formError}</p>}
+    </form>
   )
 }

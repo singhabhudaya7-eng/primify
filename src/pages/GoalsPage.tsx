@@ -1,27 +1,61 @@
 import { useState } from 'react'
-import { Plus, Trash2, CheckCircle2, TrendingUp } from 'lucide-react'
+import { Plus, Trash2, CheckCircle2, TrendingUp, Pencil } from 'lucide-react'
 import { useGoals } from '@/hooks/useGoals'
 import Modal from '@/components/ui/Modal'
 import ProgressBar from '@/components/ui/ProgressBar'
-import { getProgressPercent, formatDate } from '@/lib/utils'
-import { cn } from '@/lib/utils'
+import { cn, getProgressPercent, formatDate } from '@/lib/utils'
+import type { Goal } from '@/types/database'
 
 const GOAL_EMOJIS = ['🎯', '💰', '💪', '📚', '🏃', '🧠', '🌱', '✈️', '🏠', '💻', '🎵', '❤️']
 
+const BLANK_FORM = {
+  name: '', description: '', target_value: 100, unit: '', emoji: '🎯', deadline: '',
+}
+
+type GoalForm = typeof BLANK_FORM
+
 export default function GoalsPage() {
-  const { goals, isLoading, createGoal, updateGoalProgress, deleteGoal } = useGoals()
-  const [showModal, setShowModal] = useState(false)
+  const { goals, isLoading, createGoal, editGoal, updateGoalProgress, deleteGoal } = useGoals()
+
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null)
   const [editingProgress, setEditingProgress] = useState<string | null>(null)
   const [progressVal, setProgressVal] = useState('')
-  const [form, setForm] = useState({
-    name: '', description: '', target_value: 100,
-    unit: '', emoji: '🎯', deadline: '',
-  })
-  const [createError, setCreateError] = useState('')
+  const [form, setForm] = useState<GoalForm>(BLANK_FORM)
+  const [formError, setFormError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  function openCreate() {
+    setForm(BLANK_FORM)
+    setFormError('')
+    setShowCreateModal(true)
+  }
+
+  function openEdit(goal: Goal) {
+    setForm({
+      name: goal.name,
+      description: goal.description ?? '',
+      target_value: goal.target_value,
+      unit: goal.unit ?? '',
+      emoji: goal.emoji,
+      deadline: goal.deadline ?? '',
+    })
+    setFormError('')
+    setEditingGoal(goal)
+  }
+
+  function closeModals() {
+    if (isSubmitting) return
+    setShowCreateModal(false)
+    setEditingGoal(null)
+    setForm(BLANK_FORM)
+    setFormError('')
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    setCreateError('')
+    setFormError('')
+    setIsSubmitting(true)
     try {
       await createGoal.mutateAsync({
         ...form,
@@ -29,10 +63,34 @@ export default function GoalsPage() {
         unit: form.unit || undefined,
         deadline: form.deadline || undefined,
       })
-      setShowModal(false)
-      setForm({ name: '', description: '', target_value: 100, unit: '', emoji: '🎯', deadline: '' })
+      setShowCreateModal(false)
+      setForm(BLANK_FORM)
     } catch (err: any) {
-      setCreateError(err?.message || 'Failed to create goal. Check your connection.')
+      setFormError(err?.message || 'Failed to create goal. Check your connection.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingGoal) return
+    setFormError('')
+    setIsSubmitting(true)
+    try {
+      await editGoal.mutateAsync({
+        goalId: editingGoal.id,
+        ...form,
+        description: form.description || undefined,
+        unit: form.unit || undefined,
+        deadline: form.deadline || undefined,
+      })
+      setEditingGoal(null)
+      setForm(BLANK_FORM)
+    } catch (err: any) {
+      setFormError(err?.message || 'Failed to update goal.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -58,7 +116,7 @@ export default function GoalsPage() {
           <h1 className="font-display text-2xl font-bold text-[#dddaff]">Goals</h1>
           <p className="text-[#666] text-sm mt-0.5">Your mission targets</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-2">
+        <button onClick={openCreate} className="btn-primary flex items-center gap-2">
           <Plus size={16} />
           New Goal
         </button>
@@ -73,7 +131,7 @@ export default function GoalsPage() {
           <div className="text-5xl mb-3">🎯</div>
           <p className="text-[#dddaff] font-medium">No goals yet</p>
           <p className="text-[#555] text-sm mt-1 mb-4">Set a mission, track your conquest</p>
-          <button onClick={() => setShowModal(true)} className="btn-primary">Set First Goal</button>
+          <button onClick={openCreate} className="btn-primary">Set First Goal</button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -91,16 +149,25 @@ export default function GoalsPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => { setEditingProgress(goal.id); setProgressVal(String(goal.current_value)) }}
                       className="p-1.5 rounded-lg text-[#555] hover:text-[#8b85ff] hover:bg-[rgba(108,99,255,0.1)] transition-all"
+                      title="Update progress"
                     >
                       <TrendingUp size={14} />
                     </button>
                     <button
+                      onClick={() => openEdit(goal)}
+                      className="p-1.5 rounded-lg text-[#555] hover:text-[#b9b5ff] hover:bg-[rgba(108,99,255,0.1)] transition-all"
+                      title="Edit goal"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
                       onClick={() => deleteGoal.mutate(goal.id)}
                       className="p-1.5 rounded-lg text-[#444] hover:text-red-400 hover:bg-[rgba(255,32,32,0.1)] transition-all"
+                      title="Delete goal"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -126,7 +193,6 @@ export default function GoalsPage() {
                   </div>
                 </div>
 
-                {/* Inline progress editor */}
                 {editingProgress === goal.id && (
                   <div className="flex gap-2 mt-3 pt-3 border-t border-[var(--border)]">
                     <input
@@ -171,65 +237,96 @@ export default function GoalsPage() {
         </div>
       )}
 
-      {/* Create modal */}
-      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setCreateError('') }} title="New Goal">
-        <form onSubmit={handleCreate} className="space-y-4">
-          <div>
-            <label className="text-xs text-[#666] mb-1.5 block">Icon</label>
-            <div className="flex flex-wrap gap-2">
-              {GOAL_EMOJIS.map(e => (
-                <button key={e} type="button" onClick={() => setForm(f => ({ ...f, emoji: e }))}
-                  className={cn('w-9 h-9 rounded-lg text-lg transition-all',
-                    form.emoji === e ? 'bg-[rgba(108,99,255,0.3)] ring-1 ring-[#5548f5]'
-                    : 'bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)]')}>
-                  {e}
-                </button>
-              ))}
-            </div>
-          </div>
+      {/* ── Create modal ── */}
+      <Modal isOpen={showCreateModal} onClose={closeModals} title="New Goal">
+        <SharedGoalForm
+          form={form} setForm={setForm}
+          onSubmit={handleCreate} onCancel={closeModals}
+          isSubmitting={isSubmitting} formError={formError}
+          submitLabel="Set Goal"
+        />
+      </Modal>
 
-          <div>
-            <label className="text-xs text-[#666] mb-1.5 block">Goal name</label>
-            <input className="input-field" placeholder="e.g. Save ₹1.5L, Run 5km, Read 12 books..."
-              value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
-          </div>
-
-          <div>
-            <label className="text-xs text-[#666] mb-1.5 block">Description (optional)</label>
-            <input className="input-field" placeholder="Why does this matter to you?"
-              value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-[#666] mb-1.5 block">Target value</label>
-              <input type="number" min={1} className="input-field"
-                value={form.target_value} onChange={e => setForm(f => ({ ...f, target_value: parseInt(e.target.value) || 100 }))} />
-            </div>
-            <div>
-              <label className="text-xs text-[#666] mb-1.5 block">Unit</label>
-              <input className="input-field" placeholder="kg, ₹, km, books..."
-                value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs text-[#666] mb-1.5 block">Deadline (optional)</label>
-            <input type="date" className="input-field"
-              value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} />
-          </div>
-
-          <div className="flex gap-2 pt-2">
-            <button type="button" onClick={() => { setShowModal(false); setCreateError('') }} className="btn-ghost flex-1">Cancel</button>
-            <button type="submit" disabled={createGoal.isPending} className="btn-primary flex-1">
-              {createGoal.isPending ? 'Creating...' : 'Set Goal'}
-            </button>
-          </div>
-          {createError && (
-            <p className="text-xs text-red-400 text-center mt-1">{createError}</p>
-          )}
-        </form>
+      {/* ── Edit modal ── */}
+      <Modal isOpen={!!editingGoal} onClose={closeModals} title="Edit Goal">
+        <SharedGoalForm
+          form={form} setForm={setForm}
+          onSubmit={handleEdit} onCancel={closeModals}
+          isSubmitting={isSubmitting} formError={formError}
+          submitLabel="Save Changes"
+        />
       </Modal>
     </div>
+  )
+}
+
+function SharedGoalForm({ form, setForm, onSubmit, onCancel, isSubmitting, formError, submitLabel }: {
+  form: GoalForm
+  setForm: React.Dispatch<React.SetStateAction<GoalForm>>
+  onSubmit: (e: React.FormEvent) => void
+  onCancel: () => void
+  isSubmitting: boolean
+  formError: string
+  submitLabel: string
+}) {
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div>
+        <label className="text-xs text-[#666] mb-1.5 block">Icon</label>
+        <div className="flex flex-wrap gap-2">
+          {GOAL_EMOJIS.map(e => (
+            <button key={e} type="button" onClick={() => setForm(f => ({ ...f, emoji: e }))}
+              className={cn('w-9 h-9 rounded-lg text-lg transition-all',
+                form.emoji === e
+                  ? 'bg-[rgba(108,99,255,0.3)] ring-1 ring-[#5548f5]'
+                  : 'bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)]')}>
+              {e}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs text-[#666] mb-1.5 block">Goal name</label>
+        <input className="input-field" placeholder="e.g. Save ₹1.5L, Run 5km, Read 12 books..."
+          value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
+      </div>
+
+      <div>
+        <label className="text-xs text-[#666] mb-1.5 block">Description (optional)</label>
+        <input className="input-field" placeholder="Why does this matter to you?"
+          value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-[#666] mb-1.5 block">Target value</label>
+          <input type="number" min={1} className="input-field"
+            value={form.target_value}
+            onChange={e => setForm(f => ({ ...f, target_value: parseInt(e.target.value) || 100 }))} />
+        </div>
+        <div>
+          <label className="text-xs text-[#666] mb-1.5 block">Unit</label>
+          <input className="input-field" placeholder="kg, ₹, km, books..."
+            value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} />
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs text-[#666] mb-1.5 block">Deadline (optional)</label>
+        <input type="date" className="input-field"
+          value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} />
+      </div>
+
+      <div className="flex gap-2 pt-2">
+        <button type="button" onClick={onCancel} disabled={isSubmitting} className="btn-ghost flex-1">
+          Cancel
+        </button>
+        <button type="submit" disabled={isSubmitting} className="btn-primary flex-1">
+          {isSubmitting ? 'Saving...' : submitLabel}
+        </button>
+      </div>
+      {formError && <p className="text-xs text-red-400 text-center mt-1">{formError}</p>}
+    </form>
   )
 }

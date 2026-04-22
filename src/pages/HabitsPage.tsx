@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Trash2, Zap, Flame } from 'lucide-react'
+import { Plus, Trash2, Zap, Flame, Pencil } from 'lucide-react'
 import { useHabits } from '@/hooks/useHabits'
 import { useGoals } from '@/hooks/useGoals'
 import Modal from '@/components/ui/Modal'
@@ -7,28 +7,53 @@ import { cn } from '@/lib/utils'
 import type { Habit } from '@/types/database'
 
 const EMOJI_OPTIONS = ['💪', '🏃', '📚', '🧘', '💧', '🥗', '😴', '💻', '🎯', '✍️', '🌅', '🧠', '💰', '🚫', '🎵']
+
 const FREQ_OPTIONS: { value: Habit['frequency']; label: string }[] = [
-  { value: 'daily', label: 'Every day' },
-  { value: 'weekdays', label: 'Weekdays' },
-  { value: 'weekends', label: 'Weekends' },
+  { value: 'daily',    label: 'Every day' },
+  { value: 'weekdays', label: 'Weekdays (Mon–Fri)' },
+  { value: 'weekends', label: 'Weekends (Sat–Sun)' },
+  { value: 'custom',   label: 'Custom (pick days/week)' },
 ]
 
-const INITIAL_FORM = {
+const BLANK_FORM = {
   name: '',
   points_value: 10,
   energy_value: 10,
   emoji: '💪',
   goal_id: '',
   frequency: 'daily' as Habit['frequency'],
+  frequency_days: 3,
+}
+
+type HabitForm = typeof BLANK_FORM
+
+function freqLabel(h: Habit): string {
+  if (h.frequency === 'custom') return `${h.frequency_days ?? 3}d/week`
+  if (h.frequency === 'weekdays') return 'weekdays'
+  if (h.frequency === 'weekends') return 'weekends'
+  return 'daily'
 }
 
 export default function HabitsPage() {
   const { habits, isLoading, createHabit, deleteHabit } = useHabits()
   const { goals } = useGoals()
   const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState(INITIAL_FORM)
+  const [form, setForm] = useState<HabitForm>(BLANK_FORM)
   const [createError, setCreateError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  function openModal() {
+    setForm(BLANK_FORM)
+    setCreateError('')
+    setShowModal(true)
+  }
+
+  function closeModal() {
+    if (isSubmitting) return
+    setShowModal(false)
+    setForm(BLANK_FORM)
+    setCreateError('')
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -36,30 +61,21 @@ export default function HabitsPage() {
     setIsSubmitting(true)
     try {
       await createHabit.mutateAsync({
-        ...form,
+        name: form.name,
+        points_value: form.points_value,
+        energy_value: form.energy_value,
+        emoji: form.emoji,
         goal_id: form.goal_id || undefined,
+        frequency: form.frequency,
+        frequency_days: form.frequency === 'custom' ? form.frequency_days : undefined,
       })
-      setForm(INITIAL_FORM)
+      setForm(BLANK_FORM)
       setShowModal(false)
     } catch (err: any) {
-      console.error('Form submission error:', err)
       setCreateError(err?.message || 'Failed to create habit. Check your connection.')
     } finally {
       setIsSubmitting(false)
     }
-  }
-
-  function handleOpenModal() {
-    setForm(INITIAL_FORM)
-    setCreateError('')
-    setShowModal(true)
-  }
-
-  function handleCloseModal() {
-    if (isSubmitting) return
-    setShowModal(false)
-    setForm(INITIAL_FORM)
-    setCreateError('')
   }
 
   return (
@@ -69,7 +85,7 @@ export default function HabitsPage() {
           <h1 className="font-display text-2xl font-bold text-[#dddaff]">Habits</h1>
           <p className="text-[#666] text-sm mt-0.5">Daily actions that build your power</p>
         </div>
-        <button onClick={handleOpenModal} className="btn-primary flex items-center gap-2">
+        <button onClick={openModal} className="btn-primary flex items-center gap-2">
           <Plus size={16} />
           New Habit
         </button>
@@ -79,11 +95,11 @@ export default function HabitsPage() {
       <div className="flex items-center gap-4 text-xs text-[#555]">
         <div className="flex items-center gap-1">
           <Zap size={10} className="text-[#ffd933]" />
-          <span>Points earned</span>
+          <span>Points</span>
         </div>
         <div className="flex items-center gap-1">
           <Flame size={10} className="text-[#8b85ff]" />
-          <span>Energy earned</span>
+          <span>Energy</span>
         </div>
       </div>
 
@@ -98,9 +114,7 @@ export default function HabitsPage() {
           <div className="text-5xl mb-3">🎯</div>
           <p className="text-[#dddaff] font-medium">No habits yet</p>
           <p className="text-[#555] text-sm mt-1 mb-4">Create your first habit to start earning points & energy</p>
-          <button onClick={handleOpenModal} className="btn-primary">
-            Add First Habit
-          </button>
+          <button onClick={openModal} className="btn-primary">Add First Habit</button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -112,7 +126,7 @@ export default function HabitsPage() {
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-[#dddaff]">{habit.name}</p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="badge-void">{habit.frequency}</span>
+                    <span className="badge-void">{freqLabel(habit)}</span>
                     {linkedGoal && (
                       <span className="text-xs text-[#555]">→ {linkedGoal.emoji} {linkedGoal.name}</span>
                     )}
@@ -143,7 +157,7 @@ export default function HabitsPage() {
       )}
 
       {/* Create modal */}
-      <Modal isOpen={showModal} onClose={handleCloseModal} title="New Habit">
+      <Modal isOpen={showModal} onClose={closeModal} title="New Habit">
         <form onSubmit={handleCreate} className="space-y-4">
           {/* Emoji picker */}
           <div>
@@ -151,8 +165,7 @@ export default function HabitsPage() {
             <div className="flex flex-wrap gap-2">
               {EMOJI_OPTIONS.map(e => (
                 <button
-                  key={e}
-                  type="button"
+                  key={e} type="button"
                   onClick={() => setForm(f => ({ ...f, emoji: e }))}
                   className={cn(
                     'w-9 h-9 rounded-lg text-lg transition-all',
@@ -178,16 +191,14 @@ export default function HabitsPage() {
             />
           </div>
 
+          {/* Points + Energy */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-[#666] mb-1.5 block flex items-center gap-1">
                 <Zap size={10} className="text-[#ffd933]" /> Points value
               </label>
               <input
-                type="number"
-                min={1}
-                max={500}
-                className="input-field"
+                type="number" min={1} max={500} className="input-field"
                 value={form.points_value}
                 onChange={e => setForm(f => ({ ...f, points_value: parseInt(e.target.value) || 10 }))}
               />
@@ -197,31 +208,54 @@ export default function HabitsPage() {
                 <Flame size={10} className="text-[#8b85ff]" /> Energy value
               </label>
               <input
-                type="number"
-                min={1}
-                max={50}
-                className="input-field"
+                type="number" min={1} max={50} className="input-field"
                 value={form.energy_value}
                 onChange={e => setForm(f => ({ ...f, energy_value: parseInt(e.target.value) || 10 }))}
               />
             </div>
           </div>
 
+          {/* Frequency */}
           <div>
             <label className="text-xs text-[#666] mb-1.5 block">Frequency</label>
-            <select
-              className="input-field"
-              value={form.frequency}
-              onChange={e => setForm(f => ({ ...f, frequency: e.target.value as Habit['frequency'] }))}
-            >
+            <div className="grid grid-cols-2 gap-2">
               {FREQ_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>
+                <button
+                  key={o.value} type="button"
+                  onClick={() => setForm(f => ({ ...f, frequency: o.value }))}
+                  className={cn(
+                    'py-2 px-3 rounded-xl text-xs text-left transition-all border',
+                    form.frequency === o.value
+                      ? 'bg-[rgba(108,99,255,0.2)] border-[rgba(108,99,255,0.5)] text-[#b9b5ff]'
+                      : 'bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.06)] text-[#666] hover:border-[rgba(108,99,255,0.2)] hover:text-[#888]'
+                  )}
+                >
                   {o.label}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
+
+            {/* Custom days slider */}
+            {form.frequency === 'custom' && (
+              <div className="mt-3 p-3 rounded-xl bg-[rgba(108,99,255,0.08)] border border-[rgba(108,99,255,0.15)]">
+                <div className="flex items-center justify-between text-xs mb-2">
+                  <span className="text-[#888]">Days per week</span>
+                  <span className="font-mono font-bold text-[#b9b5ff]">{form.frequency_days} day{form.frequency_days !== 1 ? 's' : ''}/week</span>
+                </div>
+                <input
+                  type="range" min={1} max={7}
+                  value={form.frequency_days}
+                  onChange={e => setForm(f => ({ ...f, frequency_days: parseInt(e.target.value) }))}
+                  className="w-full accent-[#8b85ff]"
+                />
+                <div className="flex justify-between text-[10px] text-[#444] mt-1 font-mono">
+                  <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span>
+                </div>
+              </div>
+            )}
           </div>
 
+          {/* Goal link */}
           {goals.length > 0 && (
             <div>
               <label className="text-xs text-[#666] mb-1.5 block">Link to goal (optional)</label>
@@ -232,9 +266,7 @@ export default function HabitsPage() {
               >
                 <option value="">None</option>
                 {goals.filter(g => !g.is_completed).map(g => (
-                  <option key={g.id} value={g.id}>
-                    {g.emoji} {g.name}
-                  </option>
+                  <option key={g.id} value={g.id}>{g.emoji} {g.name}</option>
                 ))}
               </select>
             </div>
@@ -248,7 +280,7 @@ export default function HabitsPage() {
           </div>
 
           <div className="flex gap-2 pt-2">
-            <button type="button" onClick={handleCloseModal} disabled={isSubmitting} className="btn-ghost flex-1">
+            <button type="button" onClick={closeModal} disabled={isSubmitting} className="btn-ghost flex-1">
               Cancel
             </button>
             <button type="submit" disabled={isSubmitting} className="btn-primary flex-1">

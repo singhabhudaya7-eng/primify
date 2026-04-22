@@ -3,6 +3,16 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/lib/store'
 import toast from 'react-hot-toast'
 
+function withTimeout<T>(promise: PromiseLike<T>, ms = 15000): Promise<T> {
+  return Promise.race([
+    Promise.resolve(promise),
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Request timed out — check your connection and try again.')), ms)
+    ),
+  ])
+}
+
 export function useRewards() {
   const { user, profile, setProfile } = useAuthStore()
   const qc = useQueryClient()
@@ -25,21 +35,12 @@ export function useRewards() {
 
   const createReward = useMutation({
     mutationFn: async (input: { name: string; description?: string; cost_points: number; emoji?: string }) => {
-      if (!user?.id) {
-        throw new Error('User not authenticated')
-      }
+      if (!user?.id) throw new Error('User not authenticated')
 
-      const { data, error } = await supabase
-        .from('rewards')
-        .insert({ user_id: user.id, ...input })
-        .select()
-        .single()
-
-      if (error) {
-        console.error('Create reward error:', error)
-        throw error
-      }
-
+      const { data, error } = await withTimeout(
+        supabase.from('rewards').insert({ user_id: user.id, ...input }).select().single()
+      )
+      if (error) throw error
       return data
     },
     onSuccess: () => {
@@ -47,8 +48,31 @@ export function useRewards() {
       toast.success('Reward added!', { duration: 2000 })
     },
     onError: (err: Error) => {
-      console.error('Create reward mutation error:', err)
+      console.error('Create reward error:', err)
       toast.error(err.message || 'Failed to create reward')
+    },
+  })
+
+  const editReward = useMutation({
+    mutationFn: async (input: {
+      rewardId: string
+      name: string
+      description?: string
+      cost_points: number
+      emoji: string
+    }) => {
+      const { rewardId, ...fields } = input
+      const { error } = await withTimeout(
+        supabase.from('rewards').update(fields).eq('id', rewardId)
+      )
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rewards', user?.id] })
+      toast.success('Reward updated!', { duration: 2000 })
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Failed to update reward')
     },
   })
 
@@ -61,32 +85,24 @@ export function useRewards() {
         throw new Error(`Need ${reward.cost_points} pts, you have ${profile.total_points}`)
       }
 
-      // Deduct points
       const newPoints = profile.total_points - reward.cost_points
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ total_points: newPoints })
         .eq('id', user!.id)
-
       if (updateError) throw updateError
 
-      // Record redemption
       const { error: redeemError } = await supabase.from('reward_redemptions').insert({
         user_id: user!.id,
         reward_id: rewardId,
         points_spent: reward.cost_points,
       })
-
       if (redeemError) throw redeemError
 
-      // Increment times_redeemed
       const { error: incrementError } = await supabase
         .from('rewards')
-        .update({
-          times_redeemed: (reward.times_redeemed || 0) + 1,
-        })
+        .update({ times_redeemed: (reward.times_redeemed || 0) + 1 })
         .eq('id', rewardId)
-
       if (incrementError) throw incrementError
 
       setProfile({ ...profile, total_points: newPoints })
@@ -122,6 +138,7 @@ export function useRewards() {
     isLoading: rewardsQuery.isLoading,
     isError: rewardsQuery.isError,
     createReward,
+    editReward,
     redeemReward,
     deleteReward,
   }

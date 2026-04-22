@@ -7,7 +7,8 @@ export interface Habit {
   points_value: number
   energy_value: number
   emoji: string
-  frequency: 'daily' | 'weekdays' | 'weekends'
+  frequency: 'daily' | 'weekdays' | 'weekends' | 'custom'
+  frequency_days?: number | null
   is_active: boolean
   created_at: string
 }
