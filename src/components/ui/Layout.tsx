@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Target, CheckSquare, Sword, ShoppingBag, Gift, LogOut, Zap, Flame } from 'lucide-react'
+import { LayoutDashboard, Target, CheckSquare, Sword, ShoppingBag, Gift, LogOut, Zap, Flame, Dumbbell } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/lib/store'
 import { useStreak } from '@/hooks/useStreak'
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: '/dragon',   icon: Sword,          label: 'Arena'     },
   { to: '/shop',     icon: ShoppingBag,    label: 'Shop'      },
   { to: '/rewards',  icon: Gift,           label: 'Rewards'   },
+  { to: '/gym',      icon: Dumbbell,       label: 'Gym'       },
 ]
 
 export default function Layout() {
