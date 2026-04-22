@@ -5,6 +5,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import App from './App'
 import './index.css'
+import { detectAndHandleStaleCache } from './lib/version'
+
+// Run before mounting — clears stale localStorage and redirects to /auth if a new
+// version is detected (prevents UI bugs caused by cached JS bundles)
+detectAndHandleStaleCache()
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Sword, Shield, Zap, Trophy, ChevronRight, Flame, RefreshCw } from 'lucide-react'
+import { Sword, Shield, Zap, Trophy, ChevronRight, Flame, RefreshCw, Lock } from 'lucide-react'
 import { useGame } from '@/hooks/useGame'
 import { useAuthStore } from '@/lib/store'
 import { WEAPONS } from '@/types/weapons'
@@ -8,7 +8,11 @@ import ProgressBar from '@/components/ui/ProgressBar'
 import type { Weapon } from '@/types/weapons'
 
 export default function DragonPage() {
-  const { gameState, inventory, ownedWeaponIds, attackDragon, energyAttack, convertEnergyToPoints, isLoading } = useGame()
+  const {
+    gameState, inventory, ownedWeaponIds,
+    attackDragon, energyAttack, convertEnergyToPoints,
+    isLoading, weaponEnergyCost, energyDmgRatio,
+  } = useGame()
   const { profile } = useAuthStore()
   const [selectedWeapon, setSelectedWeapon] = useState<Weapon>(WEAPONS[0])
   const [strikeCount, setStrikeCount] = useState(1)
@@ -18,13 +22,16 @@ export default function DragonPage() {
   )
 
   const energyCurrent = profile?.energy_current ?? 0
+  const hasEnergy = energyCurrent > 0
   const maxStrikes = Math.min(energyCurrent, 50)
 
   function handleWeaponAttack(e: React.MouseEvent) {
+    if (!hasEnergy) return
     attackDragon.mutate({ weapon: selectedWeapon, event: e.nativeEvent as MouseEvent })
   }
 
   function handleEnergyAttack(e: React.MouseEvent) {
+    if (!hasEnergy) return
     energyAttack.mutate({ strikes: strikeCount, event: e.nativeEvent as MouseEvent })
   }
 
@@ -70,6 +77,17 @@ export default function DragonPage() {
         </div>
       )}
 
+      {/* No-energy warning */}
+      {!hasEnergy && (
+        <div className="stat-card border border-[rgba(255,201,0,0.2)] bg-[rgba(255,201,0,0.04)] flex items-center gap-3">
+          <Lock size={18} className="text-[#ffd933] flex-shrink-0" />
+          <p className="text-sm text-[#999]">
+            <span className="text-[#ffd933] font-medium">Arena locked.</span>{' '}
+            You have no energy. Complete your habits today to restore Energy and attack.
+          </p>
+        </div>
+      )}
+
       {/* Dragon card */}
       <div className="stat-card border border-[rgba(255,32,32,0.2)] bg-[rgba(255,32,32,0.04)] relative overflow-hidden">
         <div
@@ -104,33 +122,46 @@ export default function DragonPage() {
         </div>
       </div>
 
-      {/* ── ENERGY ATTACK PANEL ── */}
-      <div className="stat-card border border-[rgba(139,133,255,0.25)] bg-[rgba(139,133,255,0.05)]">
+      {/* ── ENERGY STRIKE PANEL ── */}
+      <div className={cn(
+        'stat-card border transition-all',
+        hasEnergy
+          ? 'border-[rgba(139,133,255,0.25)] bg-[rgba(139,133,255,0.05)]'
+          : 'border-[rgba(255,255,255,0.05)] bg-[rgba(255,255,255,0.02)] opacity-60'
+      )}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Flame size={16} className="text-[#8b85ff]" />
-            <h2 className="font-display font-bold text-[#b9b5ff]">Energy Strike</h2>
+            <Flame size={16} className={hasEnergy ? 'text-[#8b85ff]' : 'text-[#444]'} />
+            <h2 className={cn('font-display font-bold', hasEnergy ? 'text-[#b9b5ff]' : 'text-[#555]')}>
+              Energy Strike
+            </h2>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-mono"
-            style={{ background: 'rgba(139,133,255,0.18)', color: '#b9b5ff' }}>
+            style={{
+              background: hasEnergy ? 'rgba(139,133,255,0.18)' : 'rgba(255,255,255,0.05)',
+              color: hasEnergy ? '#b9b5ff' : '#555',
+            }}>
             <Flame size={12} />
             <span>{energyCurrent}E available</span>
           </div>
         </div>
 
-        <p className="text-xs text-[#666] mb-3">1 Energy = 10 Damage. Spend your daily energy to assault the dragon.</p>
+        <p className="text-xs text-[#666] mb-3">
+          1E = {energyDmgRatio} DMG — burn your daily energy to assault the dragon.
+        </p>
 
-        {energyCurrent === 0 ? (
-          <div className="text-center py-4 text-[#555] text-sm">
-            No energy. Complete habits to refill your Energy.
+        {!hasEnergy ? (
+          <div className="text-center py-3 text-[#444] text-sm">
+            No energy. Complete habits to refill.
           </div>
         ) : (
           <>
-            {/* Strike count slider */}
             <div className="mb-3">
               <div className="flex items-center justify-between text-xs text-[#666] mb-1">
                 <span>Strikes to use</span>
-                <span className="font-mono text-[#b9b5ff]">{strikeCount}E → {strikeCount * 10} DMG</span>
+                <span className="font-mono text-[#b9b5ff]">
+                  {strikeCount}E → {strikeCount * energyDmgRatio} DMG
+                </span>
               </div>
               <input
                 type="range"
@@ -148,37 +179,40 @@ export default function DragonPage() {
 
             <button
               onClick={handleEnergyAttack}
-              disabled={energyAttack.isPending || energyCurrent === 0}
+              disabled={energyAttack.isPending}
               className={cn(
                 'w-full py-3 rounded-xl font-display font-bold text-base transition-all duration-150 flex items-center justify-center gap-2',
-                'text-white border',
-                'hover:shadow-[0_0_20px_rgba(139,133,255,0.4)] active:scale-[0.98]',
-                energyAttack.isPending || energyCurrent === 0
-                  ? 'opacity-50 cursor-not-allowed bg-[rgba(139,133,255,0.2)] border-[rgba(139,133,255,0.2)]'
-                  : 'bg-gradient-to-r from-[#5548f5] to-[#8b85ff] border-[rgba(139,133,255,0.5)]'
+                'text-white border active:scale-[0.98]',
+                'bg-gradient-to-r from-[#5548f5] to-[#8b85ff] border-[rgba(139,133,255,0.5)]',
+                'hover:shadow-[0_0_20px_rgba(139,133,255,0.4)]',
+                energyAttack.isPending && 'opacity-60 cursor-not-allowed'
               )}
             >
               <Flame size={18} />
               {energyAttack.isPending
                 ? 'Channeling...'
-                : `Energy Strike — ${strikeCount * 10} DMG`}
+                : `Energy Strike — ${strikeCount * energyDmgRatio} DMG`}
             </button>
           </>
         )}
       </div>
 
       {/* ── WEAPON ATTACK PANEL ── */}
-      <div>
+      <div className={cn(!hasEnergy && 'opacity-50 pointer-events-none')}>
         <h2 className="section-title mb-3">Weapon Attack</h2>
+        <p className="text-xs text-[#555] mb-3">
+          All weapons cost <span className="text-[#8b85ff] font-mono">{weaponEnergyCost}E</span> per swing.
+          {' '}Paid weapons also deduct points.
+        </p>
         {availableWeapons.length === 0 ? (
           <div className="stat-card text-center py-8">
-            <p className="text-[#666] text-sm">No weapons yet — Stone Fist should always be available.</p>
+            <p className="text-[#666] text-sm">No weapons available.</p>
           </div>
         ) : (
           <div className="space-y-2">
             {availableWeapons.map(weapon => {
               const isSelected = selectedWeapon.id === weapon.id
-              const canAfford = weapon.cost_points === 0 || (profile?.total_points ?? 0) >= weapon.cost_points
+              const canAffordPoints = weapon.cost_points === 0 || (profile?.total_points ?? 0) >= weapon.cost_points
               return (
                 <button
                   key={weapon.id}
@@ -188,7 +222,7 @@ export default function DragonPage() {
                     isSelected
                       ? 'bg-[rgba(108,99,255,0.12)] border-[rgba(108,99,255,0.4)]'
                       : 'bg-[var(--surface-2)] border-[var(--border)] hover:border-[rgba(108,99,255,0.2)]',
-                    !canAfford && 'opacity-50'
+                    !canAffordPoints && 'opacity-50'
                   )}
                 >
                   <span className="text-2xl">{weapon.emoji}</span>
@@ -196,11 +230,16 @@ export default function DragonPage() {
                     <p className="text-sm font-medium text-[#dddaff]">{weapon.name}</p>
                     <p className="text-xs text-[#555]">{weapon.damage_min}–{weapon.damage_max} dmg</p>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    {weapon.cost_points === 0 ? (
+                  <div className="text-right flex-shrink-0 space-y-0.5">
+                    <div className="flex items-center gap-1 justify-end text-xs font-mono text-[#8b85ff]">
+                      <Flame size={9} />
+                      <span>{weaponEnergyCost}E</span>
+                    </div>
+                    {weapon.cost_points > 0 && (
+                      <p className="text-xs font-mono text-red-400">-{weapon.cost_points} pts</p>
+                    )}
+                    {weapon.cost_points === 0 && (
                       <span className="badge-void text-xs">Free</span>
-                    ) : (
-                      <span className="text-xs font-mono text-red-400">-{weapon.cost_points} pts</span>
                     )}
                   </div>
                   {isSelected && <ChevronRight size={14} className="text-[#8b85ff] flex-shrink-0" />}
@@ -211,26 +250,34 @@ export default function DragonPage() {
         )}
       </div>
 
-      {/* Weapon attack button */}
+      {/* Attack button */}
       <div className="sticky bottom-4">
         <button
           onClick={handleWeaponAttack}
-          disabled={attackDragon.isPending}
+          disabled={attackDragon.isPending || !hasEnergy}
           className={cn(
             'w-full py-4 rounded-2xl font-display font-bold text-lg transition-all duration-150 flex items-center justify-center gap-3',
-            'bg-gradient-to-r from-red-600 to-red-500 text-white border border-red-500/40',
-            'hover:from-red-500 hover:to-red-400 hover:shadow-[0_0_24px_rgba(255,32,32,0.3)]',
-            'active:scale-[0.98]',
+            hasEnergy
+              ? 'bg-gradient-to-r from-red-600 to-red-500 text-white border border-red-500/40 hover:from-red-500 hover:to-red-400 hover:shadow-[0_0_24px_rgba(255,32,32,0.3)] active:scale-[0.98]'
+              : 'bg-[rgba(255,255,255,0.05)] text-[#444] border border-[rgba(255,255,255,0.05)] cursor-not-allowed',
             attackDragon.isPending && 'opacity-60 cursor-not-allowed'
           )}
         >
-          <Sword size={22} />
-          {attackDragon.isPending ? 'Attacking...' : `Attack with ${selectedWeapon.name}`}
-          <Sword size={22} className="scale-x-[-1]" />
+          {hasEnergy ? <Sword size={22} /> : <Lock size={22} />}
+          {attackDragon.isPending
+            ? 'Attacking...'
+            : hasEnergy
+              ? `Attack with ${selectedWeapon.name}`
+              : 'No Energy — Complete Habits First'}
+          {hasEnergy && <Sword size={22} className="scale-x-[-1]" />}
         </button>
-        {selectedWeapon.cost_points > 0 && (
+
+        {hasEnergy && (
           <p className="text-center text-xs text-[#555] mt-2">
-            Costs <span className="text-red-400 font-mono">{formatPoints(selectedWeapon.cost_points)} pts</span> per attack
+            Costs <span className="text-[#8b85ff] font-mono">{weaponEnergyCost}E</span> per swing
+            {selectedWeapon.cost_points > 0 && (
+              <> + <span className="text-red-400 font-mono">{formatPoints(selectedWeapon.cost_points)} pts</span></>
+            )}
           </p>
         )}
       </div>
@@ -245,7 +292,7 @@ export default function DragonPage() {
         <div className="stat-card text-center">
           <Flame size={16} className="mx-auto mb-1 text-[#8b85ff]" />
           <p className="text-lg font-mono font-bold text-[#dddaff]">{energyCurrent}</p>
-          <p className="text-xs text-[#555]">energy</p>
+          <p className="text-xs text-[#555]">energy left</p>
         </div>
         <div className="stat-card text-center">
           <Trophy size={16} className="mx-auto mb-1 text-[#ffd933]" />
@@ -255,37 +302,36 @@ export default function DragonPage() {
       </div>
 
       {/* Energy → Points conversion */}
-      <div className="stat-card border border-[rgba(255,201,0,0.12)] bg-[rgba(255,201,0,0.03)]">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-[#dddaff] flex items-center gap-2">
-              <RefreshCw size={14} className="text-[#ffd933]" />
-              Convert Energy to Points
-            </p>
-            <p className="text-xs text-[#666] mt-0.5">4E = 1P  •  {Math.floor(energyCurrent / 4)} pts available to convert</p>
+      {energyCurrent >= 4 && (
+        <div className="stat-card border border-[rgba(255,201,0,0.12)] bg-[rgba(255,201,0,0.03)]">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-[#dddaff] flex items-center gap-2">
+                <RefreshCw size={14} className="text-[#ffd933]" />
+                Convert Energy to Points
+              </p>
+              <p className="text-xs text-[#666] mt-0.5">4E = 1P  •  {Math.floor(energyCurrent / 4)} pts available to convert</p>
+            </div>
+            <button
+              onClick={() => convertEnergyToPoints.mutate(Math.floor(energyCurrent / 4) * 4)}
+              disabled={convertEnergyToPoints.isPending}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all bg-[rgba(255,201,0,0.15)] text-[#ffd933] border border-[rgba(255,201,0,0.25)] hover:bg-[rgba(255,201,0,0.25)]"
+            >
+              {convertEnergyToPoints.isPending ? '...' : 'Convert All'}
+            </button>
           </div>
-          <button
-            onClick={() => convertEnergyToPoints.mutate(Math.floor(energyCurrent / 4) * 4)}
-            disabled={convertEnergyToPoints.isPending || energyCurrent < 4}
-            className={cn(
-              'px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
-              energyCurrent >= 4
-                ? 'bg-[rgba(255,201,0,0.15)] text-[#ffd933] border border-[rgba(255,201,0,0.25)] hover:bg-[rgba(255,201,0,0.25)]'
-                : 'bg-[rgba(255,255,255,0.04)] text-[#444] cursor-not-allowed'
-            )}
-          >
-            {convertEnergyToPoints.isPending ? '...' : 'Convert All'}
-          </button>
         </div>
-      </div>
+      )}
 
       {/* How it works */}
       <div className="stat-card border border-[rgba(108,99,255,0.15)] bg-[rgba(108,99,255,0.04)]">
         <p className="text-xs text-[#666] leading-relaxed">
-          <span className="text-[#b9b5ff] font-medium">How the Arena works: </span>
-          Complete habits to earn Energy ⚡. Use Energy to deal massive damage (1E = 10 DMG) or buy weapons with Points.
-          Defeat the dragon to earn <span className="text-[#ffd933]">500 bonus Points</span> and unlock a Reward Slot.
-          Miss a day and the dragon heals. Convert unused Energy to Points at 4:1.
+          <span className="text-[#b9b5ff] font-medium">Rules: </span>
+          Every attack costs Energy — no energy, no damage.
+          Energy Strike = {energyDmgRatio} DMG per E.
+          Weapon attacks cost {weaponEnergyCost}E + any point cost per swing.
+          Defeat the dragon → <span className="text-[#ffd933]">+{500}P LootDrop</span> + Reward Slot.
+          Convert unused Energy to Points at 4:1.
         </p>
       </div>
     </div>
