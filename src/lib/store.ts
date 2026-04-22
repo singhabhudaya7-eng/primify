@@ -7,6 +7,7 @@ export interface Profile {
   username?: string
   avatar_url?: string
   total_points: number
+  energy_current: number
   level: number
   created_at: string
   updated_at: string

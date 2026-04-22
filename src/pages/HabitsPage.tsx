@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Trash2, Zap } from 'lucide-react'
+import { Plus, Trash2, Zap, Flame } from 'lucide-react'
 import { useHabits } from '@/hooks/useHabits'
 import { useGoals } from '@/hooks/useGoals'
 import Modal from '@/components/ui/Modal'
@@ -16,6 +16,7 @@ const FREQ_OPTIONS: { value: Habit['frequency']; label: string }[] = [
 const INITIAL_FORM = {
   name: '',
   points_value: 10,
+  energy_value: 10,
   emoji: '💪',
   goal_id: '',
   frequency: 'daily' as Habit['frequency'],
@@ -27,10 +28,12 @@ export default function HabitsPage() {
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(INITIAL_FORM)
   const [createError, setCreateError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     setCreateError('')
+    setIsSubmitting(true)
     try {
       await createHabit.mutateAsync({
         ...form,
@@ -41,6 +44,8 @@ export default function HabitsPage() {
     } catch (err: any) {
       console.error('Form submission error:', err)
       setCreateError(err?.message || 'Failed to create habit. Check your connection.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -51,6 +56,7 @@ export default function HabitsPage() {
   }
 
   function handleCloseModal() {
+    if (isSubmitting) return
     setShowModal(false)
     setForm(INITIAL_FORM)
     setCreateError('')
@@ -69,6 +75,18 @@ export default function HabitsPage() {
         </button>
       </div>
 
+      {/* Legend */}
+      <div className="flex items-center gap-4 text-xs text-[#555]">
+        <div className="flex items-center gap-1">
+          <Zap size={10} className="text-[#ffd933]" />
+          <span>Points earned</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Flame size={10} className="text-[#8b85ff]" />
+          <span>Energy earned</span>
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map(i => (
@@ -79,7 +97,7 @@ export default function HabitsPage() {
         <div className="text-center py-16 stat-card">
           <div className="text-5xl mb-3">🎯</div>
           <p className="text-[#dddaff] font-medium">No habits yet</p>
-          <p className="text-[#555] text-sm mt-1 mb-4">Create your first habit to start earning points</p>
+          <p className="text-[#555] text-sm mt-1 mb-4">Create your first habit to start earning points & energy</p>
           <button onClick={handleOpenModal} className="btn-primary">
             Add First Habit
           </button>
@@ -100,10 +118,15 @@ export default function HabitsPage() {
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1 badge-gold">
                     <Zap size={10} />
                     <span>{habit.points_value}</span>
+                  </div>
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono"
+                    style={{ background: 'rgba(139,133,255,0.15)', color: '#8b85ff' }}>
+                    <Flame size={10} />
+                    <span>{habit.energy_value ?? 10}E</span>
                   </div>
                   <button
                     onClick={() => deleteHabit.mutate(habit.id)}
@@ -157,7 +180,9 @@ export default function HabitsPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-[#666] mb-1.5 block">Points value</label>
+              <label className="text-xs text-[#666] mb-1.5 block flex items-center gap-1">
+                <Zap size={10} className="text-[#ffd933]" /> Points value
+              </label>
               <input
                 type="number"
                 min={1}
@@ -168,19 +193,33 @@ export default function HabitsPage() {
               />
             </div>
             <div>
-              <label className="text-xs text-[#666] mb-1.5 block">Frequency</label>
-              <select
+              <label className="text-xs text-[#666] mb-1.5 block flex items-center gap-1">
+                <Flame size={10} className="text-[#8b85ff]" /> Energy value
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={50}
                 className="input-field"
-                value={form.frequency}
-                onChange={e => setForm(f => ({ ...f, frequency: e.target.value as Habit['frequency'] }))}
-              >
-                {FREQ_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+                value={form.energy_value}
+                onChange={e => setForm(f => ({ ...f, energy_value: parseInt(e.target.value) || 10 }))}
+              />
             </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-[#666] mb-1.5 block">Frequency</label>
+            <select
+              className="input-field"
+              value={form.frequency}
+              onChange={e => setForm(f => ({ ...f, frequency: e.target.value as Habit['frequency'] }))}
+            >
+              {FREQ_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {goals.length > 0 && (
@@ -201,12 +240,19 @@ export default function HabitsPage() {
             </div>
           )}
 
+          <div className="p-3 rounded-xl bg-[rgba(139,133,255,0.08)] border border-[rgba(139,133,255,0.15)]">
+            <p className="text-xs text-[#888]">
+              <span className="text-[#b9b5ff] font-medium">Energy powers the Arena.</span>{' '}
+              3-day streak = 1.2× boost  •  7-day streak = 1.5× boost
+            </p>
+          </div>
+
           <div className="flex gap-2 pt-2">
-            <button type="button" onClick={handleCloseModal} className="btn-ghost flex-1">
+            <button type="button" onClick={handleCloseModal} disabled={isSubmitting} className="btn-ghost flex-1">
               Cancel
             </button>
-            <button type="submit" disabled={createHabit.isPending} className="btn-primary flex-1">
-              {createHabit.isPending ? 'Creating...' : 'Create Habit'}
+            <button type="submit" disabled={isSubmitting} className="btn-primary flex-1">
+              {isSubmitting ? 'Creating...' : 'Create Habit'}
             </button>
           </div>
           {createError && (

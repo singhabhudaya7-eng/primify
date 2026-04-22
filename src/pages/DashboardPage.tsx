@@ -104,6 +104,7 @@ export default function DashboardPage() {
                   onClick={(e) => !done && completeHabit.mutate({
                     habitId: habit.id,
                     pointsValue: habit.points_value,
+                    energyValue: habit.energy_value ?? 10,
                     event: e.nativeEvent as MouseEvent,
                   })}
                   disabled={done || completeHabit.isPending}

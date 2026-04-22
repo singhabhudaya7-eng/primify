@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Target, CheckSquare, Sword, ShoppingBag, Gift, LogOut, Zap } from 'lucide-react'
+import { LayoutDashboard, Target, CheckSquare, Sword, ShoppingBag, Gift, LogOut, Zap, Flame } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/lib/store'
 import { useStreak } from '@/hooks/useStreak'
@@ -20,9 +20,13 @@ export default function Layout() {
   const { currentStreak } = useStreak()
   const navigate = useNavigate()
 
+  const energyCurrent = profile?.energy_current ?? 0
+  // Visual cap for the energy bar: 100E = full bar
+  const energyBarPct = Math.min(100, Math.round((energyCurrent / 100) * 100))
+
   return (
     <div className="flex min-h-screen bg-[var(--surface-0)]">
-      {/* ── Desktop Sidebar (hidden on mobile) ── */}
+      {/* ── Desktop Sidebar ── */}
       <aside className="hidden md:flex w-60 flex-shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface-1)]">
         {/* Logo */}
         <div className="px-5 py-5 border-b border-[var(--border)]">
@@ -36,7 +40,7 @@ export default function Layout() {
         </div>
 
         {/* Profile snippet */}
-        <div className="px-4 py-3 border-b border-[var(--border)]">
+        <div className="px-4 py-3 border-b border-[var(--border)] space-y-2">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-[#dddaff] truncate max-w-[120px]">
@@ -45,9 +49,37 @@ export default function Layout() {
               <p className="text-xs text-[#6c63ff] font-mono">Lv.{profile?.level ?? 1}</p>
             </div>
             <div className="text-right">
-              <p className="text-sm font-mono font-medium text-[#ffd933]">{formatPoints(profile?.total_points ?? 0)}</p>
+              <div className="flex items-center gap-1 justify-end">
+                <Zap size={11} className="text-[#ffd933]" />
+                <p className="text-sm font-mono font-medium text-[#ffd933]">{formatPoints(profile?.total_points ?? 0)}</p>
+              </div>
               <p className="text-xs text-orange-400">{currentStreak > 0 ? `🔥 ${currentStreak}d` : '—'}</p>
             </div>
+          </div>
+
+          {/* Energy bar */}
+          <div>
+            <div className="flex items-center justify-between text-xs mb-1">
+              <div className="flex items-center gap-1 text-[#8b85ff]">
+                <Flame size={10} />
+                <span className="font-medium">Energy</span>
+              </div>
+              <span className="font-mono text-[#8b85ff]">{energyCurrent}E</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-[rgba(139,133,255,0.12)] overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${energyBarPct}%`,
+                  background: 'linear-gradient(90deg, #5548f5, #8b85ff)',
+                }}
+              />
+            </div>
+            {energyCurrent > 0 && (
+              <p className="text-[10px] text-[#555] mt-0.5 font-mono">
+                {Math.floor(energyCurrent / 4)}P convertible  •  {energyCurrent * 10} arena DMG
+              </p>
+            )}
           </div>
         </div>
 
@@ -94,7 +126,18 @@ export default function Layout() {
             <span className="font-display font-semibold text-base tracking-wide text-[#dddaff]">PrimeOS</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm font-mono font-medium text-[#ffd933]">{formatPoints(profile?.total_points ?? 0)}</span>
+            {/* Points */}
+            <div className="flex items-center gap-1">
+              <Zap size={11} className="text-[#ffd933]" />
+              <span className="text-sm font-mono font-medium text-[#ffd933]">{formatPoints(profile?.total_points ?? 0)}</span>
+            </div>
+            {/* Energy */}
+            {energyCurrent > 0 && (
+              <div className="flex items-center gap-1">
+                <Flame size={11} className="text-[#8b85ff]" />
+                <span className="text-sm font-mono font-medium text-[#8b85ff]">{energyCurrent}E</span>
+              </div>
+            )}
             {currentStreak > 0 && (
               <span className="text-xs text-orange-400">🔥 {currentStreak}d</span>
             )}

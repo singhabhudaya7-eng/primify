@@ -5,6 +5,7 @@ export interface Habit {
   name: string
   description?: string
   points_value: number
+  energy_value: number
   emoji: string
   frequency: 'daily' | 'weekdays' | 'weekends'
   is_active: boolean
@@ -56,6 +57,7 @@ export interface GameState {
   player_hp: number
   player_max_hp: number
   battles_won: number
+  reward_slots: number
   updated_at: string
 }
 

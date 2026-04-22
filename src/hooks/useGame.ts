@@ -5,6 +5,8 @@ import { spawnFloatingText, getWeaponDamage } from '@/lib/utils'
 import { WEAPON_MAP, DRAGONS, type Weapon } from '@/types/weapons'
 import toast from 'react-hot-toast'
 
+const LOOT_DROP_POINTS = 500
+
 export function useGame() {
   const { user, profile, setProfile } = useAuthStore()
   const qc = useQueryClient()
@@ -40,6 +42,7 @@ export function useGame() {
     gcTime: 60000,
   })
 
+  // ── Weapon-based attack (uses Points) ──────────────────────────────────────
   const attackDragon = useMutation({
     mutationFn: async ({ weapon, event }: { weapon: Weapon; event?: MouseEvent }) => {
       const gs = gameQuery.data
@@ -54,60 +57,30 @@ export function useGame() {
       const { damage, isCrit } = getWeaponDamage(weapon, weapon.special)
       const newDragonHp = Math.max(0, gs.dragon_hp - damage)
       const dragonDefeated = newDragonHp === 0
-
-      // Deduct points if weapon costs points
       const newPoints = weapon.cost_points > 0 ? currentPoints - weapon.cost_points : currentPoints
 
-      // Update game state
       if (dragonDefeated) {
-        // Progress to next dragon
-        const nextLevel = gs.dragon_level + 1
-        const nextDragon = DRAGONS.find(d => d.level === nextLevel) ?? {
-          name: `Ancient Wyrm Lv.${nextLevel}`,
-          emoji: '🌌',
-          level: nextLevel,
-          base_hp: gs.dragon_max_hp * 1.5,
-        }
-        const newMaxHp = Math.floor(nextDragon.base_hp * (1 + gs.battles_won * 0.1))
-
-        const { error: updateError } = await supabase
-          .from('game_state')
-          .update({
-            dragon_name: nextDragon.name,
-            dragon_hp: newMaxHp,
-            dragon_max_hp: newMaxHp,
-            dragon_level: nextLevel,
-            dragon_strength: gs.dragon_strength + 3,
-            dragon_emoji: nextDragon.emoji,
-            battles_won: gs.battles_won + 1,
-          })
-          .eq('user_id', user!.id)
-
-        if (updateError) throw updateError
+        const lootPoints = newPoints + LOOT_DROP_POINTS
+        await triggerLootDrop(gs, lootPoints)
+        return { damage, isCrit, dragonDefeated, newDragonHp, weapon, lootDrop: true }
       } else {
-        const { error: updateError } = await supabase
+        const { error } = await supabase
           .from('game_state')
-          .update({
-            dragon_hp: newDragonHp,
-          })
+          .update({ dragon_hp: newDragonHp })
           .eq('user_id', user!.id)
-
-        if (updateError) throw updateError
+        if (error) throw error
       }
 
-      // Update points
       if (weapon.cost_points > 0) {
-        const { error: pointsError } = await supabase
+        const { error } = await supabase
           .from('profiles')
           .update({ total_points: newPoints })
           .eq('id', user!.id)
-
-        if (pointsError) throw pointsError
-
+        if (error) throw error
         setProfile({ ...profile, total_points: newPoints })
       }
 
-      return { damage, isCrit, dragonDefeated, newDragonHp, weapon }
+      return { damage, isCrit, dragonDefeated, newDragonHp, weapon, lootDrop: false }
     },
     onSuccess: (result, variables) => {
       if (variables.event) {
@@ -119,7 +92,8 @@ export function useGame() {
         )
       }
       if (result.dragonDefeated) {
-        toast.success('🏆 DRAGON DEFEATED! You level up!', { duration: 4000 })
+        toast.success(`🏆 DRAGON DEFEATED! +${LOOT_DROP_POINTS}P LOOT DROP! Reward slot unlocked!`, { duration: 5000 })
+        qc.invalidateQueries({ queryKey: ['profiles', user?.id] })
       } else if (result.isCrit) {
         toast.success(`💥 Critical hit! ${result.damage} damage!`, { duration: 2000 })
       }
@@ -131,6 +105,147 @@ export function useGame() {
     },
   })
 
+  // ── Energy-based attack (1E = 10 DMG) ──────────────────────────────────────
+  const energyAttack = useMutation({
+    mutationFn: async ({ strikes, event }: { strikes: number; event?: MouseEvent }) => {
+      const gs = gameQuery.data
+      if (!gs) throw new Error('Game state not loaded')
+      if (!profile) throw new Error('Profile not loaded')
+
+      const energyAvailable = profile.energy_current ?? 0
+      if (energyAvailable < strikes) {
+        throw new Error(`Not enough energy! You have ${energyAvailable}E, need ${strikes}E.`)
+      }
+
+      const damage = strikes * 10
+      const newDragonHp = Math.max(0, gs.dragon_hp - damage)
+      const dragonDefeated = newDragonHp === 0
+      const newEnergy = energyAvailable - strikes
+      const newPoints = dragonDefeated ? (profile.total_points + LOOT_DROP_POINTS) : profile.total_points
+
+      // Deduct energy
+      const { error: energyError } = await supabase
+        .from('profiles')
+        .update({ energy_current: newEnergy, ...(dragonDefeated ? { total_points: newPoints } : {}) })
+        .eq('id', user!.id)
+      if (energyError) throw energyError
+
+      if (dragonDefeated) {
+        await triggerLootDrop(gs, newPoints, newEnergy)
+      } else {
+        const { error } = await supabase
+          .from('game_state')
+          .update({ dragon_hp: newDragonHp })
+          .eq('user_id', user!.id)
+        if (error) throw error
+      }
+
+      setProfile({ ...profile, energy_current: newEnergy, total_points: newPoints })
+      return { damage, dragonDefeated, newEnergy, strikes, lootDrop: dragonDefeated }
+    },
+    onSuccess: (result, variables) => {
+      if (variables.event) {
+        spawnFloatingText(
+          `⚡ -${result.damage} DMG`,
+          variables.event.clientX - 40,
+          variables.event.clientY - 40,
+          'damage'
+        )
+      }
+      if (result.dragonDefeated) {
+        toast.success(`🏆 DRAGON DEFEATED! +${LOOT_DROP_POINTS}P LOOT DROP! Reward slot unlocked!`, { duration: 5000 })
+        qc.invalidateQueries({ queryKey: ['profiles', user?.id] })
+      } else {
+        toast.success(`⚡ Energy Strike! ${result.damage} damage dealt!`, { duration: 2000 })
+      }
+      qc.invalidateQueries({ queryKey: ['game_state', user?.id] })
+    },
+    onError: (err: Error) => {
+      console.error('Energy attack error:', err)
+      toast.error(err.message || 'Energy attack failed')
+    },
+  })
+
+  // ── Energy → Points conversion (4E = 1P) ───────────────────────────────────
+  const convertEnergyToPoints = useMutation({
+    mutationFn: async (energyToConvert: number) => {
+      if (!profile) throw new Error('Profile not loaded')
+      const pointsGained = Math.floor(energyToConvert / 4)
+      const energyCost = pointsGained * 4
+
+      if (energyCost === 0) throw new Error('Need at least 4 Energy to convert.')
+      if ((profile.energy_current ?? 0) < energyCost) {
+        throw new Error(`Not enough energy. Need ${energyCost}E.`)
+      }
+
+      const newEnergy = (profile.energy_current ?? 0) - energyCost
+      const newPoints = profile.total_points + pointsGained
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ energy_current: newEnergy, total_points: newPoints })
+        .eq('id', user!.id)
+      if (error) throw error
+
+      setProfile({ ...profile, energy_current: newEnergy, total_points: newPoints })
+      return { pointsGained, energyCost, newEnergy, newPoints }
+    },
+    onSuccess: (result) => {
+      toast.success(`Converted ${result.energyCost}E → +${result.pointsGained}P`, { duration: 2500 })
+      qc.invalidateQueries({ queryKey: ['profiles', user?.id] })
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Conversion failed')
+    },
+  })
+
+  // ── Shared: trigger loot drop when dragon is defeated ──────────────────────
+  async function triggerLootDrop(gs: ReturnType<typeof gameQuery.data>, newPoints: number, newEnergy?: number) {
+    const nextLevel = gs!.dragon_level + 1
+    const nextDragon = DRAGONS.find(d => d.level === nextLevel) ?? {
+      name: `Ancient Wyrm Lv.${nextLevel}`,
+      emoji: '🌌',
+      level: nextLevel,
+      base_hp: gs!.dragon_max_hp * 1.5,
+    }
+    const newMaxHp = Math.floor(nextDragon.base_hp * (1 + gs!.battles_won * 0.1))
+
+    const [gsResult, profileResult] = await Promise.all([
+      supabase
+        .from('game_state')
+        .update({
+          dragon_name: nextDragon.name,
+          dragon_hp: newMaxHp,
+          dragon_max_hp: newMaxHp,
+          dragon_level: nextLevel,
+          dragon_strength: gs!.dragon_strength + 3,
+          dragon_emoji: nextDragon.emoji,
+          battles_won: gs!.battles_won + 1,
+          reward_slots: (gs!.reward_slots ?? 0) + 1,
+        })
+        .eq('user_id', user!.id),
+      supabase
+        .from('profiles')
+        .update({
+          total_points: newPoints,
+          ...(newEnergy !== undefined ? { energy_current: newEnergy } : {}),
+        })
+        .eq('id', user!.id),
+    ])
+
+    if (gsResult.error) throw gsResult.error
+    if (profileResult.error) throw profileResult.error
+
+    if (profile) {
+      setProfile({
+        ...profile,
+        total_points: newPoints,
+        ...(newEnergy !== undefined ? { energy_current: newEnergy } : {}),
+      })
+    }
+  }
+
+  // ── Buy weapon (uses Points) ───────────────────────────────────────────────
   const buyWeapon = useMutation({
     mutationFn: async (weaponId: string) => {
       const weapon = WEAPON_MAP[weaponId]
@@ -140,36 +255,30 @@ export function useGame() {
         throw new Error(`Need ${weapon.cost_points} pts, you have ${profile.total_points}`)
       }
 
-      // Check if already owned
       const existing = inventoryQuery.data?.find(i => i.weapon_id === weaponId)
       if (existing) {
-        // Increment quantity
-        const { error: updateError } = await supabase
+        const { error } = await supabase
           .from('inventory')
           .update({ quantity: existing.quantity + 1 })
           .eq('id', existing.id)
-
-        if (updateError) throw updateError
+        if (error) throw error
       } else {
-        const { error: insertError } = await supabase.from('inventory').insert({
+        const { error } = await supabase.from('inventory').insert({
           user_id: user!.id,
           weapon_id: weaponId,
           quantity: 1,
         })
-
-        if (insertError) throw insertError
+        if (error) throw error
       }
 
       const newPoints = profile.total_points - weapon.cost_points
-      const { error: pointsError } = await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({ total_points: newPoints })
         .eq('id', user!.id)
-
-      if (pointsError) throw pointsError
+      if (error) throw error
 
       setProfile({ ...profile, total_points: newPoints })
-
       return weapon
     },
     onSuccess: (weapon) => {
@@ -182,7 +291,7 @@ export function useGame() {
     },
   })
 
-  // Penalize dragon when streak is broken
+  // ── Streak penalty (dragon heals on missed day) ────────────────────────────
   const applyStreakPenalty = useMutation({
     mutationFn: async () => {
       const gs = gameQuery.data
@@ -197,7 +306,6 @@ export function useGame() {
           dragon_strength: gs.dragon_strength + 2,
         })
         .eq('user_id', user!.id)
-
       if (error) throw error
     },
     onSuccess: () => {
@@ -218,6 +326,8 @@ export function useGame() {
     isLoading: gameQuery.isLoading,
     isError: gameQuery.isError,
     attackDragon,
+    energyAttack,
+    convertEnergyToPoints,
     buyWeapon,
     applyStreakPenalty,
   }

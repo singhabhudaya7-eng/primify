@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/lib/store'
-import { todayStr, spawnFloatingText } from '@/lib/utils'
+import { todayStr, spawnFloatingText, getStreakMultiplier } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type { Habit } from '@/types/database'
 
@@ -45,10 +45,26 @@ export function useHabits() {
   const completedHabitIds = new Set(todayLogsQuery.data?.map(l => l.habit_id) ?? [])
 
   const completeHabit = useMutation({
-    mutationFn: async ({ habitId, pointsValue, event }: { habitId: string; pointsValue: number; event?: MouseEvent }) => {
+    mutationFn: async ({ habitId, pointsValue, energyValue, event }: {
+      habitId: string
+      pointsValue: number
+      energyValue: number
+      event?: MouseEvent
+    }) => {
       if (completedHabitIds.has(habitId)) {
         throw new Error('Habit already completed today')
       }
+
+      // Read current streak to apply multiplier
+      const { data: streakData } = await supabase
+        .from('streaks')
+        .select('current_streak')
+        .eq('user_id', user!.id)
+        .single()
+
+      const currentStreak = streakData?.current_streak ?? 0
+      const multiplier = getStreakMultiplier(currentStreak)
+      const energyEarned = Math.round(energyValue * multiplier)
 
       // Insert daily log
       const { error: logError } = await supabase.from('daily_logs').insert({
@@ -59,37 +75,40 @@ export function useHabits() {
       })
       if (logError) throw logError
 
-      // Update total points on profile
+      // Update profile: points + energy
       const newTotal = (profile?.total_points ?? 0) + pointsValue
+      const newEnergy = (profile?.energy_current ?? 0) + energyEarned
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({ total_points: newTotal })
+        .update({ total_points: newTotal, energy_current: newEnergy })
         .eq('id', user!.id)
       if (profileError) throw profileError
 
-      // Update streak
       await updateStreak()
 
-      return { pointsValue, newTotal }
+      return { pointsValue, energyEarned, newTotal, newEnergy, multiplier }
     },
     onSuccess: (data, variables) => {
       if (!data) return
 
-      // Spawn floating +points text
       if (variables.event) {
         spawnFloatingText(`+${data.pointsValue} pts`, variables.event.clientX - 20, variables.event.clientY - 30, 'points')
+        spawnFloatingText(`⚡+${data.energyEarned}E`, variables.event.clientX + 30, variables.event.clientY - 50, 'damage')
       }
 
-      // Update profile in store
       if (profile) {
-        useAuthStore.getState().setProfile({ ...profile, total_points: data.newTotal })
+        useAuthStore.getState().setProfile({
+          ...profile,
+          total_points: data.newTotal,
+          energy_current: data.newEnergy,
+        })
       }
 
-      // Invalidate queries
       qc.invalidateQueries({ queryKey: ['daily_logs', user?.id] })
       qc.invalidateQueries({ queryKey: ['streaks', user?.id] })
 
-      toast.success(`+${data.pointsValue} points!`, { duration: 2000 })
+      const multiplierLabel = data.multiplier > 1 ? ` (${data.multiplier}x streak!)` : ''
+      toast.success(`+${data.pointsValue} pts  ⚡+${data.energyEarned}E${multiplierLabel}`, { duration: 2500 })
     },
     onError: (err: Error) => {
       console.error('Complete habit error:', err)
@@ -98,16 +117,28 @@ export function useHabits() {
   })
 
   const createHabit = useMutation({
-    mutationFn: async (input: { name: string; points_value: number; goal_id?: string; emoji?: string; frequency?: Habit['frequency'] }) => {
-      if (!user?.id) {
-        throw new Error('User not authenticated')
-      }
+    mutationFn: async (input: {
+      name: string
+      points_value: number
+      energy_value: number
+      goal_id?: string
+      emoji?: string
+      frequency?: Habit['frequency']
+    }) => {
+      if (!user?.id) throw new Error('User not authenticated')
 
-      const { data, error } = await supabase
+      // Wrap in a 15-second timeout so the button never hangs indefinitely
+      const insertPromise = supabase
         .from('habits')
         .insert({ user_id: user.id, ...input })
         .select()
         .single()
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Request timed out — check your connection and try again.')), 15000)
+      )
+
+      const { data, error } = await Promise.race([insertPromise, timeoutPromise])
 
       if (error) {
         console.error('Create habit error:', error)
@@ -116,7 +147,7 @@ export function useHabits() {
 
       return data
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['habits', user?.id] })
       toast.success('Habit created!', { duration: 2000 })
     },
@@ -159,7 +190,7 @@ export function useHabits() {
       let newStreak = 1
       let longest = streakData?.longest_streak ?? 0
 
-      if (streakData?.last_active_date === today) return // already counted today
+      if (streakData?.last_active_date === today) return
       if (streakData?.last_active_date === yesterdayStr) {
         newStreak = (streakData.current_streak ?? 0) + 1
       }

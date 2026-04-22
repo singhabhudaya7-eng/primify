@@ -23,6 +23,12 @@ export function getProgressPercent(current: number, max: number): number {
   return Math.min(100, Math.round((current / max) * 100))
 }
 
+export function getStreakMultiplier(streak: number): number {
+  if (streak >= 7) return 1.5
+  if (streak >= 3) return 1.2
+  return 1.0
+}
+
 export function getStreakMessage(streak: number): string {
   if (streak === 0) return 'Start today'
   if (streak < 3) return 'Building...'
