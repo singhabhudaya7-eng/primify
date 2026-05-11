@@ -1,18 +1,20 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Target, CheckSquare, Sword, ShoppingBag, Gift, LogOut, Zap, Flame, Dumbbell } from 'lucide-react'
+import { useState } from 'react'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { LayoutDashboard, Target, CheckSquare, Sword, ShoppingBag, Gift, LogOut, Zap, Flame, Dumbbell, Trophy } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/lib/store'
 import { useStreak } from '@/hooks/useStreak'
 import { cn, formatPoints } from '@/lib/utils'
 
 const NAV_ITEMS = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/habits',   icon: CheckSquare,    label: 'Habits'    },
-  { to: '/goals',    icon: Target,         label: 'Goals'     },
-  { to: '/dragon',   icon: Sword,          label: 'Arena'     },
-  { to: '/shop',     icon: ShoppingBag,    label: 'Shop'      },
-  { to: '/rewards',  icon: Gift,           label: 'Rewards'   },
-  { to: '/gym',      icon: Dumbbell,       label: 'Gym'       },
+  { to: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard'   },
+  { to: '/habits',      icon: CheckSquare,     label: 'Habits'      },
+  { to: '/goals',       icon: Target,          label: 'Goals'       },
+  { to: '/dragon',      icon: Sword,           label: 'Arena'       },
+  { to: '/shop',        icon: ShoppingBag,     label: 'Shop'        },
+  { to: '/rewards',     icon: Gift,            label: 'Rewards'     },
+  { to: '/gym',         icon: Dumbbell,        label: 'Gym'         },
+  { to: '/leaderboard', icon: Trophy,          label: 'Leaderboard' },
 ]
 
 export default function Layout() {
@@ -20,6 +22,10 @@ export default function Layout() {
   const { profile } = useAuthStore()
   const { currentStreak } = useStreak()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // Pages that should fill all available space with no padding/max-width wrapper
+  const isFullBleed = ['/gym'].some(p => location.pathname.startsWith(p))
 
   const energyCurrent = profile?.energy_current ?? 0
   // Visual cap for the energy bar: 100E = full bar
@@ -116,7 +122,7 @@ export default function Layout() {
       </aside>
 
       {/* ── Main content ── */}
-      <main className="flex-1 overflow-auto pb-24 md:pb-0">
+      <main className={`flex-1 ${isFullBleed ? 'overflow-hidden flex flex-col' : 'overflow-auto pb-24 md:pb-0'}`}>
         {/* Mobile top bar */}
         <header className="md:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-[var(--surface-1)] border-b border-[var(--border)]">
           <div className="flex items-center gap-2">
@@ -152,9 +158,15 @@ export default function Layout() {
           </div>
         </header>
 
-        <div className="max-w-4xl mx-auto px-4 md:px-6 py-4 md:py-6">
-          <Outlet />
-        </div>
+        {isFullBleed ? (
+          <div className="flex-1 overflow-hidden min-h-0">
+            <Outlet />
+          </div>
+        ) : (
+          <div className="max-w-4xl mx-auto px-4 md:px-6 py-4 md:py-6">
+            <Outlet />
+          </div>
+        )}
       </main>
 
       {/* ── Mobile bottom nav ── */}

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { BodySide, getMuscleByPathIndex, MuscleMapping } from '../lib/muscle-logic';
+import { BodySide, getMuscleByPathIndex, MuscleMapping, FRONT_MUSCLES, BACK_MUSCLES } from '../lib/muscle-logic';
 import { FRONT_PATHS, BACK_PATHS } from '../lib/muscle-paths';
 
 interface MuscleMapProps {
@@ -46,6 +46,7 @@ export const MuscleMap = ({
   showIndices = false
 }: MuscleMapProps) => {
   const paths = side === 'front' ? FRONT_PATHS : BACK_PATHS;
+  const muscles = side === 'front' ? FRONT_MUSCLES : BACK_MUSCLES;
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredMuscleId, setHoveredMuscleId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{
@@ -56,11 +57,8 @@ export const MuscleMap = ({
     y: number;
   } | null>(null);
 
-  const handleMouseMove = (e: React.MouseEvent, muscle: MuscleMapping | undefined, xp: number, level: string) => {
-    if (!muscle || !containerRef.current) {
-      setTooltip(null);
-      return;
-    }
+  const handleMouseMove = (e: React.MouseEvent, muscle: MuscleMapping, xp: number, level: string) => {
+    if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     setTooltip({
       muscle,
@@ -79,92 +77,122 @@ export const MuscleMap = ({
         preserveAspectRatio="xMidYMid meet"
       >
         <defs>
-          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="2" result="blur" />
-            <feFlood floodColor="#ffffff" floodOpacity="0.6" result="color" />
-            <feComposite in="color" in2="blur" operator="in" result="shadow" />
+          {/*
+            muscleOutline: dilates the group's combined alpha outward, then
+            colours that expansion — creates a border only around the outer
+            edge of the whole muscle group, NOT between internal fragments.
+          */}
+          <filter id="muscleOutline" x="-6%" y="-6%" width="112%" height="112%">
+            <feMorphology in="SourceAlpha" operator="dilate" radius="0.8" result="expanded" />
+            <feFlood floodColor="rgba(15,22,45,0.55)" result="color" />
+            <feComposite in="color" in2="expanded" operator="in" result="outline" />
             <feMerge>
-              <feMergeNode in="shadow" />
+              <feMergeNode in="outline" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          {/* Hover: slightly larger blue-tinted outline glow */}
+          <filter id="muscleHover" x="-10%" y="-10%" width="120%" height="120%">
+            <feMorphology in="SourceAlpha" operator="dilate" radius="1.4" result="expanded" />
+            <feFlood floodColor="rgba(100,170,255,0.75)" result="color" />
+            <feComposite in="color" in2="expanded" operator="in" result="outline" />
+            <feGaussianBlur in="outline" stdDeviation="0.8" result="softOutline" />
+            <feMerge>
+              <feMergeNode in="softOutline" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          {/* Selected: blue ring */}
+          <filter id="muscleSelected" x="-8%" y="-8%" width="116%" height="116%">
+            <feMorphology in="SourceAlpha" operator="dilate" radius="1.1" result="expanded" />
+            <feFlood floodColor="rgba(80,150,255,0.9)" result="color" />
+            <feComposite in="color" in2="expanded" operator="in" result="outline" />
+            <feMerge>
+              <feMergeNode in="outline" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
         </defs>
+
+        {/* ── Layer 1: unmapped background paths (flat, no border) ── */}
         {paths.map((path, index) => {
           const muscle = getMuscleByPathIndex(index, side);
-          const xp = muscle ? (userProgress[muscle.id] || 0) : 0;
-          const level = getLevel(xp);
-          const isSelected = muscle?.id === selectedMuscleId;
-          const isHovered = muscle?.id === hoveredMuscleId;
-
-          // Determine path color
-          let fill = '#e0e0e0';
-          let opacity = 0.8;
-          let stroke = 'rgba(255,255,255,0.05)';
-
-          if (muscle) {
-            if (level !== 'none') {
-              fill = LEVEL_COLORS[level as keyof typeof LEVEL_COLORS];
-            } else {
-              fill = '#e0e0e0';
-            }
-
-            if (isHovered) {
-              fill = '#ffffff';
-              opacity = 1;
-              stroke = 'rgba(255,255,255,0.6)';
-            }
-
-            if (isSelected) {
-              opacity = 1;
-              stroke = 'rgba(255,255,255,0.4)';
-            }
-          }
-
+          if (muscle && !showIndices) return null; // handled in Layer 2
+          if (muscle) return null;
           return (
-            <g key={`${side}-${index}`} transform={path.transform} filter={isHovered ? 'url(#glow)' : undefined}>
-              <motion.path
+            <g key={`unmapped-${index}`} transform={path.transform}>
+              <path
                 d={path.d}
-                initial={false}
-                animate={{
-                  fill: fill,
-                  opacity: opacity,
-                  stroke: stroke,
-                  strokeWidth: isSelected ? 0.5 : 0.2,
-                  scale: isSelected ? 1.01 : 1,
-                }}
-                transition={{ duration: 0.15 }}
-                className={muscle || showIndices ? 'cursor-pointer' : ''}
-                onMouseEnter={() => muscle && setHoveredMuscleId(muscle.id)}
-                onMouseMove={(e) => handleMouseMove(e as unknown as React.MouseEvent, muscle, xp, level)}
-                onMouseLeave={() => {
-                  setHoveredMuscleId(null);
-                  setTooltip(null);
-                }}
-                onClick={() => {
-                  if (muscle) onMuscleClick(muscle);
-                  else if (showIndices) {
-                    onMuscleClick({
-                      id: `unmapped-${index}`,
-                      label: `Path ${index}`,
-                      description: 'This path is not yet assigned to any muscle group.',
-                      indices: [index]
-                    });
-                  }
-                }}
+                fill="#c8cdd8"
+                opacity={0.55}
+                stroke="none"
+                className={showIndices ? 'cursor-pointer' : ''}
+                onClick={() => showIndices && onMuscleClick({
+                  id: `unmapped-${index}`,
+                  label: `Path ${index}`,
+                  description: 'Unmapped path.',
+                  indices: [index]
+                })}
               />
               {showIndices && (
-                <text
-                  x={0}
-                  y={0}
-                  className="fill-white font-bold text-[3px] pointer-events-none select-none drop-shadow-sm"
-                  style={{ textShadow: '0 0 2px black' }}
-                >
+                <text x={0} y={0} fontSize={3} fill="white" style={{ textShadow: '0 0 2px black' }}>
                   {index}
                 </text>
               )}
             </g>
           );
         })}
+
+        {/* ── Layer 2: muscle groups — each group's paths share ONE outline ── */}
+        {muscles
+          .filter(m => m.indices.length > 0)
+          .map(muscle => {
+            const xp = userProgress[muscle.id] || 0;
+            const level = getLevel(xp);
+            const isSelected = muscle.id === selectedMuscleId;
+            const isHovered = muscle.id === hoveredMuscleId;
+
+            let fill = '#d4d9e6';
+            if (level !== 'none') fill = LEVEL_COLORS[level as keyof typeof LEVEL_COLORS];
+            if (isHovered) fill = '#f0f4ff';
+
+            const musclePaths = muscle.indices
+              .map(idx => paths[idx])
+              .filter(Boolean);
+
+            const filter = isHovered
+              ? 'url(#muscleHover)'
+              : isSelected
+              ? 'url(#muscleSelected)'
+              : 'url(#muscleOutline)';
+
+            return (
+              <motion.g
+                key={muscle.id}
+                filter={filter}
+                animate={{ opacity: isHovered ? 1 : 0.88 }}
+                transition={{ duration: 0.18 }}
+                onMouseEnter={() => setHoveredMuscleId(muscle.id)}
+                onMouseMove={(e) => handleMouseMove(e as unknown as React.MouseEvent, muscle, xp, level)}
+                onMouseLeave={() => { setHoveredMuscleId(null); setTooltip(null); }}
+                onClick={() => onMuscleClick(muscle)}
+                className="cursor-pointer"
+              >
+                {musclePaths.map((path, i) => (
+                  <motion.path
+                    key={i}
+                    d={path.d}
+                    transform={path.transform}
+                    animate={{ fill }}
+                    transition={{ duration: 0.18 }}
+                    stroke="none"
+                  />
+                ))}
+              </motion.g>
+            );
+          })}
       </svg>
 
       {/* Hover Tooltip */}
@@ -201,5 +229,5 @@ export const MuscleMap = ({
       )}
     </div>
   );
-};
 
+};

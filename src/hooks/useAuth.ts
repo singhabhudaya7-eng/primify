@@ -76,7 +76,9 @@ export function useAuth() {
         }
 
         if (event === 'SIGNED_IN' && session?.user) {
-          navigate('/dashboard', { replace: true })
+          if (window.location.pathname === '/auth') {
+            navigate('/dashboard', { replace: true })
+          }
         } else if (event === 'SIGNED_OUT') {
           navigate('/auth', { replace: true })
         }

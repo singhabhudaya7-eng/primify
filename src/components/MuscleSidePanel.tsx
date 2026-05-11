@@ -5,6 +5,7 @@ import { X, Trophy, Activity, Zap } from 'lucide-react';
 interface MuscleSidePanelProps {
   muscle: MuscleMapping;
   xp: number;
+  lastTrainedAt?: string;
   onClose: () => void;
   onLogWorkout: (muscleId: string) => void;
   isLogging: boolean;
@@ -22,6 +23,7 @@ const getLevelInfo = (xp: number) => {
 export const MuscleSidePanel = ({
   muscle,
   xp,
+  lastTrainedAt,
   onClose,
   onLogWorkout,
   isLogging
@@ -29,6 +31,11 @@ export const MuscleSidePanel = ({
   const level = getLevelInfo(xp);
   const nextXp = level.next;
   const progress = nextXp ? (xp / nextXp) * 100 : 100;
+
+  const trainedToday = lastTrainedAt ? (() => {
+    const d = new Date(lastTrainedAt), n = new Date();
+    return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
+  })() : false;
 
   return (
     <motion.div
@@ -97,13 +104,17 @@ export const MuscleSidePanel = ({
               <button
                 onClick={() => onLogWorkout(muscle.id)}
                 disabled={isLogging}
-                className="w-full p-6 bg-white text-black rounded-3xl font-black uppercase tracking-tighter flex items-center justify-center gap-3 hover:bg-blue-400 hover:text-white transition-all group active:scale-[0.98]"
+                className={`w-full p-6 rounded-3xl font-black uppercase tracking-tighter flex items-center justify-center gap-3 transition-all group active:scale-[0.98] ${
+                  trainedToday 
+                    ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20' 
+                    : 'bg-white text-black hover:bg-blue-400 hover:text-white'
+                }`}
               >
-                <Zap size={20} className="fill-current group-hover:animate-pulse" />
-                {isLogging ? 'Processing Evolution...' : 'Log Hypertrophy Session'}
+                {trainedToday ? <Activity size={20} className="animate-pulse" /> : <Zap size={20} className="fill-current group-hover:animate-pulse" />}
+                {isLogging ? 'Processing Evolution...' : trainedToday ? 'Add to Daily Session' : 'Log Hypertrophy Session'}
               </button>
               <p className="text-center mt-4 text-[9px] font-bold uppercase tracking-widest text-white/20">
-                +{XP_GAIN_PER_SESSION} XP per verified session
+                {trainedToday ? 'Already in today\'s 100 XP budget' : 'Earn a share of today\'s 100 XP budget'}
               </p>
             </div>
           </div>

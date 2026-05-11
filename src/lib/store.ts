@@ -44,3 +44,23 @@ export const useAuthStore = create<AuthStore>((set) => ({
   setInitialized: (isInitialized) => set({ isInitialized }),
   reset: () => set({ user: null, session: null, profile: null, isLoading: false }),
 }))
+
+interface MuscleStore {
+  progress: Record<string, number>
+  lastTrained: Record<string, string>
+  loading: boolean
+  isInitialized: boolean
+  setProgress: (p: Record<string, number>) => void
+  setLastTrained: (lt: Record<string, string>) => void
+  setLoading: (l: boolean) => void
+}
+
+export const useMuscleStore = create<MuscleStore>((set) => ({
+  progress: {},
+  lastTrained: {},
+  loading: true,
+  isInitialized: false,
+  setProgress: (progress) => set({ progress, isInitialized: true }),
+  setLastTrained: (lastTrained) => set({ lastTrained }),
+  setLoading: (loading) => set({ loading }),
+}))
