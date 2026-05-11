@@ -1,0 +1,32 @@
+1. The Logical Architecture: "The Warrior’s Core"Energy ($E$) vs. Points ($P$)Energy ($E$): Ephemeral. Earned daily via habits. Resets or decays if not used in the "Arena." It represents your current "Vitality."Points ($P$): Permanent currency. Used in the "Shop" for rewards (Burrito Bowls, RE Gear).The LoopHabit Completion: $E = (\text{Base } E \times \text{Streak Multiplier})$.The Arena: Spend $E$ to deal damage to the Dragon.Loot Drop: Killing the Dragon yields $P$ (Massive amount) + Rare "Reward Slots" (e.g., unlocking the "Cheat Meal" slot or "New Tech Gear" slot).Conversion: $4E = 1P$. (High tax to encourage fighting over hoarding).2. The Mega Prompt for your CLI AgentCopy-paste this into your agent (Cursor, Windsurf, Bolt, etc.):Markdown# ACT AS: Senior Full-Stack Engineer & Game Designer
+# CONTEXT: 
+Productivity App: "PrimeOS"
+
+# TASK 1: DEBUGGING "CREATING..." HANG
+The "Create Habit" UI gets stuck on the "Creating..." state. 
+- Check the Supabase client-side mutation logic. 
+- Verify that the 'habits' table schema matches the input object (including icon, points_value, frequency).
+- Check if RLS (Row Level Security) policies in Supabase are blocking the INSERT. 
+- Ensure the 'Creating' state is properly handled in the catch/finally block of the async function.
+
+# TASK 2: ARCHITECT THE "WARRIOR ENERGY" SYSTEM
+Implement a two-currency system: Energy (E) and Points (P).
+1. ENERGY LOGIC: 
+   - Every habit completion grants Energy based on difficulty.
+   - Implement a Streak Multiplier: 3-day streak = 1.2x E, 7-day = 1.5x E.
+   - Energy should be stored in the 'profiles' table in Supabase.
+2. THE ARENA (DRAGON MINI-GAME):
+   - Link the Dragon's HP to Energy expenditure. 1E = 10 DMG.
+   - Create a combat loop: When Dragon HP <= 0, trigger a 'LootDrop' event.
+   - Reward: Grant 500P and unlock a 'Reward Slot' in the Shop UI.
+3. CONVERSION:
+   - Create a function to convert E to P at a 4:1 ratio (4 Energy = 1 Point).
+
+# TASK 3: UI/UX ENHANCEMENTS
+- Update the 'Rewards' tab to follow "Shop Logic" with item-level descriptions (e.g., "Epic Level Combat Rations" instead of "Burrito Bowl").
+- Add an 'Energy Bar' and 'Point Counter' to the global sidebar/dashboard.
+- Ensure the Dragon mini-game UI reflects current Energy levels as 'available attacks'.
+
+# SCHEMA REQUIREMENTS:
+- Update 'habits' table: Add 'energy_value' (int).
+- Update 'profiles' table: Add 'energy_current' (int), 'points_total' (int), 'streak_count' (int).
