@@ -165,8 +165,8 @@ export const MuscleMap = ({
             const filter = isHovered
               ? 'url(#muscleHover)'
               : isSelected
-              ? 'url(#muscleSelected)'
-              : 'url(#muscleOutline)';
+                ? 'url(#muscleSelected)'
+                : 'url(#muscleOutline)';
 
             return (
               <motion.g
