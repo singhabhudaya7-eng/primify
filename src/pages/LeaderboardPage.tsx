@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
+import { useAuthStore } from '@/lib/store';
 import { Trophy, Dumbbell, CheckSquare, TrendingUp, Medal, Share, Check } from 'lucide-react';
 
 const MEDAL_COLORS = ['#FFD700', '#C0C0C0', '#CD7F32'];
@@ -9,6 +10,7 @@ const MEDALS = ['🥇', '🥈', '🥉'];
 export default function LeaderboardPage() {
   const [tab, setTab] = useState<'gym' | 'goals'>('gym');
   const [copied, setCopied] = useState(false);
+  const { profile } = useAuthStore();
   const { entries, loading } = useLeaderboard();
 
   const sorted = [...entries].sort((a, b) =>
@@ -40,7 +42,9 @@ export default function LeaderboardPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
-              navigator.clipboard.writeText(window.location.origin);
+              const username = profile?.username || profile?.email?.split('@')[0] || 'warrior';
+              const inviteLink = `${window.location.origin}/auth?invite=${encodeURIComponent(username)}`;
+              navigator.clipboard.writeText(inviteLink);
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
             }}
@@ -205,7 +209,9 @@ export default function LeaderboardPage() {
               </p>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(window.location.origin);
+                  const username = profile?.username || profile?.email?.split('@')[0] || 'warrior';
+                  const inviteLink = `${window.location.origin}/auth?invite=${encodeURIComponent(username)}`;
+                  navigator.clipboard.writeText(inviteLink);
                   setCopied(true);
                   setTimeout(() => setCopied(false), 2000);
                 }}

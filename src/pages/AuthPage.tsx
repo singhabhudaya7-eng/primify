@@ -1,11 +1,14 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { Zap, Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function AuthPage() {
   const { signIn, signUp } = useAuth()
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [searchParams] = useSearchParams()
+  const inviteName = searchParams.get('invite')
+  const [mode, setMode] = useState<'login' | 'signup'>(inviteName ? 'signup' : 'login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [username, setUsername] = useState('')
@@ -51,6 +54,19 @@ export default function AuthPage() {
 
         {/* Card */}
         <div className="glass-strong rounded-2xl p-6">
+          {/* Invite Welcome */}
+          {inviteName && (
+            <div className="mb-6 p-3 rounded-xl bg-[rgba(108,99,255,0.1)] border border-[rgba(108,99,255,0.2)] flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[rgba(108,99,255,0.2)] flex items-center justify-center shrink-0">
+                <User size={20} className="text-[#b9b5ff]" />
+              </div>
+              <div>
+                <p className="text-[10px] text-[#6c63ff] font-black uppercase tracking-widest leading-none mb-1">Squad Invitation</p>
+                <p className="text-xs text-[#dddaff]">You've been invited by <span className="font-bold text-[#b9b5ff]">{inviteName}</span></p>
+              </div>
+            </div>
+          )}
+
           {/* Tab toggle */}
           <div className="flex bg-[rgba(255,255,255,0.04)] rounded-xl p-1 mb-6">
             {(['login', 'signup'] as const).map(m => (
