@@ -13,9 +13,10 @@ CREATE TABLE IF NOT EXISTS user_muscle_progress (
 
 ALTER TABLE user_muscle_progress ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view own muscle progress"
+CREATE POLICY "Muscle progress is viewable by authenticated users"
   ON user_muscle_progress FOR SELECT
-  USING (auth.uid() = user_id);
+  TO authenticated
+  USING (true);
 
 CREATE POLICY "Users can upsert own muscle progress"
   ON user_muscle_progress FOR INSERT
