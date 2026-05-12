@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { BodySide, getMuscleByPathIndex, MuscleMapping, FRONT_MUSCLES, BACK_MUSCLES } from '../lib/muscle-logic';
 import { FRONT_PATHS, BACK_PATHS } from '../lib/muscle-paths';
@@ -175,7 +175,7 @@ export const MuscleMap = ({
                 animate={{ opacity: isHovered ? 1 : 0.88 }}
                 transition={{ duration: 0.18 }}
                 onMouseEnter={() => setHoveredMuscleId(muscle.id)}
-                onMouseMove={(e) => handleMouseMove(e as unknown as React.MouseEvent, muscle, xp, level)}
+                onMouseMove={(e: React.MouseEvent) => handleMouseMove(e, muscle, xp, level)}
                 onMouseLeave={() => { setHoveredMuscleId(null); setTooltip(null); }}
                 onClick={() => onMuscleClick(muscle)}
                 className="cursor-pointer"
