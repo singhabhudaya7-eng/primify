@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Target, CheckSquare, Sword, ShoppingBag, Gift, LogOut, Zap, Flame, Dumbbell, Trophy } from 'lucide-react'
+import { LayoutDashboard, Target, CheckSquare, Sword, ShoppingBag, Gift, LogOut, Zap, Flame, Dumbbell, Trophy, Banknote } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/lib/store'
 import { useStreak } from '@/hooks/useStreak'
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { to: '/shop',        icon: ShoppingBag,     label: 'Shop'        },
   { to: '/rewards',     icon: Gift,            label: 'Rewards'     },
   { to: '/gym',         icon: Dumbbell,        label: 'Gym'         },
+  { to: '/finance',     icon: Banknote,        label: 'Finance'     },
   { to: '/leaderboard', icon: Trophy,          label: 'Leaderboard' },
 ]
 

@@ -29,8 +29,8 @@ export function useRewards() {
       if (error) throw error
       return data || []
     },
-    staleTime: 30000,
-    gcTime: 60000,
+    staleTime: 0,
+    gcTime: 1000 * 60 * 5,
   })
 
   const createReward = useMutation({

@@ -27,7 +27,7 @@ const relTime = (iso: string) => { const d = daysSince(iso); if (d === 0) return
 export default function GymProgressPage() {
   const [side, setSide] = useState<BodySide>('front');
   const [selectedMuscle, setSelectedMuscle] = useState<MuscleMapping | null>(null);
-  const { progress, lastTrained, logWorkout, isLogging } = useMuscleProgress();
+  const { progress, lastTrained, logWorkout, logWorkoutSession, isLogging } = useMuscleProgress();
   const [isConfigMode, setIsConfigMode] = useState(false);
   const [showLogModal, setShowLogModal] = useState(false);
   const [selectedMuscles, setSelectedMuscles] = useState<Set<string>>(new Set());
@@ -49,9 +49,12 @@ export default function GymProgressPage() {
 
   const toggleMuscle = (id: string) => setSelectedMuscles(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const handleLogSelected = async () => {
-    if (!selectedMuscles.size) return; setIsSubmitting(true);
-    for (const id of selectedMuscles) await logWorkout(id);
-    setIsSubmitting(false); setSelectedMuscles(new Set()); setShowLogModal(false);
+    if (!selectedMuscles.size) return; 
+    setIsSubmitting(true);
+    await logWorkoutSession(Array.from(selectedMuscles));
+    setIsSubmitting(false); 
+    setSelectedMuscles(new Set()); 
+    setShowLogModal(false);
   };
 
   return (

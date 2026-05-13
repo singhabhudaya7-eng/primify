@@ -32,8 +32,8 @@ export function useHabits() {
       if (error) throw error
       return data || []
     },
-    staleTime: 30000,
-    gcTime: 60000,
+    staleTime: 0,
+    gcTime: 1000 * 60 * 5,
   })
 
   const todayLogsQuery = useQuery({
@@ -48,8 +48,8 @@ export function useHabits() {
       if (error) throw error
       return data || []
     },
-    staleTime: 10000,
-    gcTime: 30000,
+    staleTime: 0,
+    gcTime: 1000 * 60 * 5,
   })
 
   const completedHabitIds = new Set(todayLogsQuery.data?.map(l => l.habit_id) ?? [])

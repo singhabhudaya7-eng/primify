@@ -8,6 +8,7 @@ import DragonPage from '@/pages/DragonPage'
 import ShopPage from '@/pages/ShopPage'
 import RewardsPage from '@/pages/RewardsPage'
 import GymProgressPage from '@/pages/GymProgressPage'
+import FinancePage from '@/pages/FinancePage'
 import LeaderboardPage from '@/pages/LeaderboardPage'
 import Layout from '@/components/ui/Layout'
 import LoadingScreen from '@/components/ui/LoadingScreen'
@@ -74,6 +75,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}
         <Route path="shop" element={<ShopPage />} />
         <Route path="rewards" element={<RewardsPage />} />
         <Route path="gym" element={<GymProgressPage />} />
+        <Route path="finance" element={<FinancePage />} />
         <Route path="leaderboard" element={<LeaderboardPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

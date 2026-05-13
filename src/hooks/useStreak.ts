@@ -19,8 +19,8 @@ export function useStreak() {
 
       return data ?? { current_streak: 0, longest_streak: 0, last_active_date: null }
     },
-    staleTime: 30000,
-    gcTime: 60000,
+    staleTime: 0,
+    gcTime: 1000 * 60 * 5,
     refetchInterval: 60 * 1000, // refresh every minute
   })
 
