@@ -13,12 +13,19 @@
   },
   "devDependencies": {
     "electron": "^31.0.0",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "electron-packager": "^17.1.2"
   },
   "build": {
     "appId": "com.primeos.widget",
     "productName": "PrimeOS Widget",
-    "files": ["main.js", "index.html", "renderer.js", "style.css", ".env"],
+    "files": [
+      "main.js",
+      "index.html",
+      "renderer.js",
+      "style.css",
+      ".env"
+    ],
     "win": {
       "target": "portable"
     }

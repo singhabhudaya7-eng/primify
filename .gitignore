@@ -9,6 +9,7 @@ src/.env
 
 # Build output
 dist/
+widget/dist-packaged/
 
 # Editor
 .vscode/

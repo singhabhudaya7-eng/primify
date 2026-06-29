@@ -234,9 +234,9 @@ selectTab('habits')
 
 // ── Timer ────────────────────────────────────────────────────────────────
 const timerTaskInput = $('timer-task')
-const timerSlider = $('timer-slider')
-const timerDurationValue = $('timer-duration-value')
 const timerDisplay = $('timer-display')
+const timerCircle = $('timer-circle')
+const timerKnob = $('timer-knob')
 const timerRingProgress = $('timer-ring-progress')
 const timerStatus = $('timer-status')
 
@@ -264,39 +264,140 @@ function formatMMSS(totalSeconds) {
   return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
 }
 
+function positionKnob(fraction) {
+  const size = timerCircle.clientWidth
+  if (!size) return
+  const center = size / 2
+  const radius = center * 0.9
+  const angle = fraction * 2 * Math.PI
+  timerKnob.style.left = `${center + radius * Math.sin(angle)}px`
+  timerKnob.style.top = `${center - radius * Math.cos(angle)}px`
+}
+
 function renderTimer() {
   const targetSeconds = timerTargetSeconds()
   const remaining = Math.max(0, targetSeconds - elapsedSeconds)
-  const pct = targetSeconds > 0 ? Math.min(100, Math.round((elapsedSeconds / targetSeconds) * 100)) : 0
   const reached = elapsedSeconds >= targetSeconds && targetSeconds > 0
+  const locked = running || elapsedSeconds > 0
 
   timerDisplay.textContent = formatMMSS(remaining)
   timerDisplay.classList.toggle('reached', reached)
-  timerRingProgress.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - pct / 100))
 
-  const locked = running || elapsedSeconds > 0
+  let fraction
+  if (locked) {
+    fraction = targetSeconds > 0 ? Math.min(1, elapsedSeconds / targetSeconds) : 0
+  } else {
+    fraction = (targetMinutes - 1) / (120 - 1)
+  }
+  timerRingProgress.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - fraction))
+
+  if (locked) {
+    const hue = Math.round(fraction * 120) // 0 = red, 120 = green
+    timerRingProgress.style.stroke = `hsl(${hue}, 75%, 58%)`
+    timerDisplay.style.color = reached ? 'hsl(120, 75%, 58%)' : ''
+  } else {
+    timerRingProgress.style.stroke = '#8b85ff'
+    timerDisplay.style.color = ''
+  }
+
+  timerCircle.classList.toggle('editable', !locked)
+  positionKnob(fraction)
+
   timerTaskInput.disabled = locked
-  timerSlider.disabled = locked
   timerResetBtn.disabled = elapsedSeconds === 0 && !running
 
-  timerStartPauseBtn.textContent = running ? '⏸ Pause' : elapsedSeconds > 0 ? '▶ Resume' : '▶ Start'
-  timerStatus.textContent = elapsedSeconds > 0 && !reached ? currentQuote : ''
+  timerStartPauseBtn.textContent = running ? '⏸' : '▶'
+  timerStartPauseBtn.title = running ? 'Pause' : elapsedSeconds > 0 ? 'Resume' : 'Start'
+
+  if (!locked) timerStatus.textContent = 'Drag the ring to set duration'
+  else timerStatus.textContent = !reached ? currentQuote : ''
 }
+
+const QUOTE_ROTATE_SECONDS = 15
 
 function pickNewQuote() {
-  currentQuote = FOCUS_QUOTES[Math.floor(Math.random() * FOCUS_QUOTES.length)]
+  if (FOCUS_QUOTES.length <= 1) { currentQuote = FOCUS_QUOTES[0] ?? ''; return }
+  let next = FOCUS_QUOTES[Math.floor(Math.random() * FOCUS_QUOTES.length)]
+  while (next === currentQuote) {
+    next = FOCUS_QUOTES[Math.floor(Math.random() * FOCUS_QUOTES.length)]
+  }
+  currentQuote = next
 }
 
-timerSlider.addEventListener('input', () => {
-  targetMinutes = parseInt(timerSlider.value, 10)
-  timerDurationValue.textContent = `${targetMinutes} min`
+// Drag anywhere on the ring (while idle) to set the duration — the ring
+// doubles as both the duration dial and the progress indicator.
+//
+// We track the *relative* angle moved since pointerdown rather than mapping
+// the pointer's absolute angle straight to a value. An absolute mapping puts
+// 1 min and 120 min next to each other at the top of the circle, so a tiny
+// move across that seam teleports the value from one end to the other.
+// Relative dragging has no seam — minutes change smoothly with the angle
+// you actually drag through, and clamping at 1/120 means it just stops
+// instead of wrapping.
+function pointerPolar(clientX, clientY) {
+  const rect = timerCircle.getBoundingClientRect()
+  const cx = rect.left + rect.width / 2
+  const cy = rect.top + rect.height / 2
+  const dx = clientX - cx
+  const dy = clientY - cy
+  let deg = Math.atan2(dx, -dy) * (180 / Math.PI)
+  if (deg < 0) deg += 360
+  const radius = Math.sqrt(dx * dx + dy * dy)
+  const minRadius = Math.min(rect.width, rect.height) / 2 * 0.3
+  return { deg, tooClose: radius < minRadius }
+}
+
+let draggingDuration = false
+let lastDragAngle = 0
+let dragMinutesFloat = 25
+
+timerCircle.addEventListener('pointerdown', (e) => {
+  if (running || elapsedSeconds > 0) return
+  draggingDuration = true
+  lastDragAngle = pointerPolar(e.clientX, e.clientY).deg
+  dragMinutesFloat = targetMinutes
+  e.preventDefault()
+})
+
+window.addEventListener('pointermove', (e) => {
+  if (!draggingDuration) return
+  const polar = pointerPolar(e.clientX, e.clientY)
+  // Angle is wildly sensitive near the center of the dial (a tiny pixel move
+  // there swings the angle by a huge amount). If the cursor drifts off the
+  // ring toward the middle mid-drag, just ignore that sample instead of
+  // letting a spurious angle reading snap the value to 1 or 120.
+  if (polar.tooClose) return
+
+  // Delta is computed against the *previous* sample, not the angle from
+  // pointerdown — accumulating step-by-step like this means each delta is
+  // always small, so it never needs the >180 wrap correction. (Computing
+  // against a fixed start angle broke once you'd dragged past 180 total:
+  // the wrap-normalization flipped sign and started subtracting, which is
+  // why pushing toward the high end of the dial snapped back down.)
+  let delta = polar.deg - lastDragAngle
+  if (delta > 180) delta -= 360
+  if (delta <= -180) delta += 360
+  lastDragAngle = polar.deg
+
+  dragMinutesFloat = Math.min(120, Math.max(1, dragMinutesFloat + (delta / 360) * (120 - 1)))
+  targetMinutes = Math.round(dragMinutesFloat)
   renderTimer()
 })
+
+window.addEventListener('pointerup', () => { draggingDuration = false })
+
+// The knob's pixel position depends on #timer-circle's actual rendered size.
+// On first load that size can read 0 (layout not settled yet), which put the
+// knob at the container's top-left corner instead of on the ring. A
+// ResizeObserver fires as soon as the element has real dimensions, and again
+// any time the widget window is resized, so the knob stays correctly placed.
+new ResizeObserver(() => renderTimer()).observe(timerCircle)
 
 function startTimerInterval() {
   if (timerIntervalId) return
   timerIntervalId = setInterval(() => {
     elapsedSeconds += 1
+    if (elapsedSeconds % QUOTE_ROTATE_SECONDS === 0) pickNewQuote()
     renderTimer()
     if (!goalNotified && elapsedSeconds >= timerTargetSeconds()) {
       goalNotified = true

@@ -7,8 +7,16 @@ import quotes from '../../quotes.json'
 
 const MODE = 'countdown' as const
 
-function pickQuote(): string {
-  return quotes[Math.floor(Math.random() * quotes.length)]
+const QUOTE_ROTATE_SECONDS = 15
+const RING_CIRCUMFERENCE = 2 * Math.PI * 42
+
+function pickQuote(exclude?: string): string {
+  if (quotes.length <= 1) return quotes[0] ?? ''
+  let next = quotes[Math.floor(Math.random() * quotes.length)]
+  while (next === exclude) {
+    next = quotes[Math.floor(Math.random() * quotes.length)]
+  }
+  return next
 }
 
 function formatMMSS(totalSeconds: number): string {
@@ -35,7 +43,13 @@ export default function TimerPage() {
   useEffect(() => {
     if (running) {
       intervalRef.current = setInterval(() => {
-        setElapsedSeconds(prev => prev + 1)
+        setElapsedSeconds(prev => {
+          const next = prev + 1
+          if (next % QUOTE_ROTATE_SECONDS === 0) {
+            setQuote(current => pickQuote(current))
+          }
+          return next
+        })
       }, 1000)
     }
     return () => {
@@ -134,43 +148,62 @@ export default function TimerPage() {
           </div>
         )}
 
-        {/* Big timer display */}
+        {/* Big timer display with controls inside the ring */}
         <div className="flex flex-col items-center py-5">
-          <div
-            className={cn(
-              'font-mono text-5xl font-bold tracking-wider transition-colors',
-              goalReached ? 'text-[#8b85ff] text-glow-void' : running ? 'text-[var(--text-primary)]' : 'text-[var(--text-primary)]'
-            )}
-          >
-            {formatMMSS(displaySeconds)}
+          <div className="relative w-56 h-56">
+            <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+              <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="7" />
+              <circle
+                cx="50" cy="50" r="42" fill="none"
+                stroke="#8b85ff" strokeWidth="7" strokeLinecap="round"
+                strokeDasharray={RING_CIRCUMFERENCE}
+                strokeDashoffset={RING_CIRCUMFERENCE * (1 - progressPct / 100)}
+                className="transition-all duration-1000 ease-linear"
+              />
+            </svg>
+
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+              <div
+                className={cn(
+                  'font-mono text-3xl font-bold tracking-wider transition-colors',
+                  goalReached ? 'text-[#8b85ff] text-glow-void' : 'text-[var(--text-primary)]'
+                )}
+              >
+                {formatMMSS(displaySeconds)}
+              </div>
+              {running && (
+                <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-[#8b85ff]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#8b85ff] animate-pulse" />
+                  live
+                </span>
+              )}
+
+              {/* Controls */}
+              <div className="flex gap-2 mt-1">
+                <button
+                  onClick={handleStartPause}
+                  title={running ? 'Pause' : elapsedSeconds > 0 ? 'Resume' : 'Start'}
+                  className="w-11 h-11 rounded-full flex items-center justify-center text-white transition-all"
+                  style={{ background: 'linear-gradient(135deg, #5548f5, #7b74ff)' }}
+                >
+                  {running ? <Pause size={18} /> : <Play size={18} />}
+                </button>
+                <button
+                  onClick={handleReset}
+                  disabled={elapsedSeconds === 0 && !running}
+                  title="Reset"
+                  className="w-11 h-11 rounded-full flex items-center justify-center text-[var(--text-secondary)] bg-[rgba(255,255,255,0.08)] border border-[var(--border-strong)] disabled:opacity-40 transition-all"
+                >
+                  <RotateCcw size={16} />
+                </button>
+              </div>
+            </div>
           </div>
-          {running && (
-            <span className="mt-1 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-[#8b85ff]">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#8b85ff] animate-pulse" />
-              live
-            </span>
-          )}
-          <div className="w-full max-w-xs h-2 rounded-full bg-[rgba(255,255,255,0.1)] mt-4 overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{ width: `${progressPct}%`, background: 'linear-gradient(90deg, #5548f5, #8b85ff)' }}
-            />
-          </div>
-          <p className="text-xs text-[var(--text-muted)] mt-2">{progressPct}% elapsed</p>
+
+          <p className="text-xs text-[var(--text-muted)] mt-3">{progressPct}% elapsed</p>
           {quote && !goalReached && (
             <p className="text-xs text-[var(--text-secondary)] text-center italic mt-3 px-2">"{quote}"</p>
           )}
-        </div>
-
-        {/* Controls */}
-        <div className="flex gap-2">
-          <button onClick={handleStartPause} className="btn-primary flex-1 flex items-center justify-center gap-2">
-            {running ? <Pause size={16} /> : <Play size={16} />}
-            {running ? 'Pause' : elapsedSeconds > 0 ? 'Resume' : 'Start'}
-          </button>
-          <button onClick={handleReset} disabled={elapsedSeconds === 0 && !running} className="btn-ghost flex items-center justify-center gap-2 px-4 disabled:opacity-40">
-            <RotateCcw size={16} />
-          </button>
         </div>
       </div>
 
