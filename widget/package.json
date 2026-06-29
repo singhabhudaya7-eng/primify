@@ -1,0 +1,26 @@
+{
+  "name": "primeos-widget",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.43.4",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.primeos.widget",
+    "productName": "PrimeOS Widget",
+    "files": ["main.js", "index.html", "renderer.js", "style.css", ".env"],
+    "win": {
+      "target": "portable"
+    }
+  }
+}

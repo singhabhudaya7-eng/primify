@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>PrimeOS Widget</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="card">
+    <div id="titlebar">
+      <div class="brand">
+        <div class="logo">⚡</div>
+        <span>PrimeOS</span>
+      </div>
+      <div class="actions">
+        <button id="refresh-btn" title="Refresh">⟳</button>
+        <button id="signout-btn" title="Sign out">⏻</button>
+        <button id="close-btn" title="Close">✕</button>
+      </div>
+    </div>
+
+    <div id="content">
+      <div id="login-form" style="display:none">
+        <h2>Sign in</h2>
+        <input id="login-email" type="email" placeholder="Email" />
+        <input id="login-password" type="password" placeholder="Password" />
+        <button id="login-btn">Sign In</button>
+        <div id="login-error"></div>
+      </div>
+
+      <div id="app-view" style="display:none">
+        <div id="tabs">
+          <button class="tab-btn active" id="tab-habits">Habits</button>
+          <button class="tab-btn" id="tab-timer">Timer</button>
+        </div>
+
+        <div id="habits-panel">
+          <div id="stats">
+            <div class="stat">
+              <div class="label">Points</div>
+              <div class="value points" id="points-value">0</div>
+            </div>
+            <div class="stat">
+              <div class="label">Energy</div>
+              <div class="value energy" id="energy-value">0E</div>
+              <div id="energy-bar-track"><div id="energy-bar-fill"></div></div>
+            </div>
+          </div>
+
+          <div id="habits-list"></div>
+          <div id="empty" style="display:none">No habits yet</div>
+        </div>
+
+        <div id="timer-panel" style="display:none">
+          <input id="timer-task" type="text" placeholder="What are you focusing on?" />
+
+          <div id="timer-duration-row">
+            <span>Duration</span>
+            <span id="timer-duration-value">25 min</span>
+          </div>
+          <input id="timer-slider" type="range" min="1" max="120" value="25" />
+
+          <div id="timer-circle">
+            <svg viewBox="0 0 100 100">
+              <circle class="ring-bg" cx="50" cy="50" r="45"></circle>
+              <circle id="timer-ring-progress" class="ring-fg" cx="50" cy="50" r="45"></circle>
+            </svg>
+            <div id="timer-display">25:00</div>
+          </div>
+          <div id="timer-status"></div>
+
+          <div id="timer-controls">
+            <button id="timer-startpause">▶ Start</button>
+            <button id="timer-reset">↺</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="loading">Loading…</div>
+      <div id="error" style="display:none"></div>
+    </div>
+
+    <div id="resize-grip" title="Drag to resize"></div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

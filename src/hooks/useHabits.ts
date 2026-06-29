@@ -5,14 +5,25 @@ import { todayStr, spawnFloatingText, getStreakMultiplier } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type { Habit } from '@/types/database'
 
-function withTimeout<T>(promise: PromiseLike<T>, ms = 15000): Promise<T> {
-  return Promise.race([
-    Promise.resolve(promise),
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Request timed out — check your connection and try again.')), ms)
-    ),
-  ])
+// Aborts the actual request on timeout (instead of racing it and abandoning
+// it mid-flight, which let the insert silently complete server-side and
+// produced duplicate rows when the user retried after a false "timed out").
+async function withAbortTimeout<T>(
+  build: (signal: AbortSignal) => PromiseLike<T>,
+  ms = 15000
+): Promise<T> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), ms)
+  try {
+    return await build(controller.signal)
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error('Request timed out — check your connection and try again.')
+    }
+    throw err
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 export function useHabits() {
@@ -138,8 +149,8 @@ export function useHabits() {
     }) => {
       if (!user?.id) throw new Error('User not authenticated')
 
-      const { data, error } = await withTimeout(
-        supabase.from('habits').insert({ user_id: user.id, ...input }).select().single()
+      const { data, error } = await withAbortTimeout<{ data: Habit | null; error: Error | null }>(signal =>
+        supabase.from('habits').insert({ user_id: user.id, ...input }).select().abortSignal(signal).single()
       )
 
       if (error) {

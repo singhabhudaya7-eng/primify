@@ -4,6 +4,7 @@ import AuthPage from '@/pages/AuthPage'
 import DashboardPage from '@/pages/DashboardPage'
 import GoalsPage from '@/pages/GoalsPage'
 import HabitsPage from '@/pages/HabitsPage'
+import TimerPage from '@/pages/TimerPage'
 import DragonPage from '@/pages/DragonPage'
 import ShopPage from '@/pages/ShopPage'
 import RewardsPage from '@/pages/RewardsPage'
@@ -71,6 +72,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="goals" element={<GoalsPage />} />
         <Route path="habits" element={<HabitsPage />} />
+        <Route path="timer" element={<TimerPage />} />
         <Route path="dragon" element={<DragonPage />} />
         <Route path="shop" element={<ShopPage />} />
         <Route path="rewards" element={<RewardsPage />} />

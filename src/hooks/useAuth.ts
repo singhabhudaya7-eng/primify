@@ -75,8 +75,10 @@ export function useAuth() {
           })
         }
 
-        if (event === 'SIGNED_IN' && session?.user) {
-          if (window.location.pathname === '/auth') {
+        if (event === 'PASSWORD_RECOVERY') {
+          navigate('/auth?mode=reset', { replace: true })
+        } else if (event === 'SIGNED_IN' && session?.user) {
+          if (window.location.pathname === '/auth' && !window.location.search.includes('mode=reset')) {
             navigate('/dashboard', { replace: true })
           }
         } else if (event === 'SIGNED_OUT') {
@@ -176,5 +178,19 @@ export function useAuth() {
     }
   }
 
-  return { ...store, signUp, signIn, signOut }
+  async function resetPasswordForEmail(email: string) {
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth?mode=reset`
+    })
+    if (error) throw error
+    return data
+  }
+
+  async function updatePassword(password: string) {
+    const { data, error } = await supabase.auth.updateUser({ password })
+    if (error) throw error
+    return data
+  }
+
+  return { ...store, signUp, signIn, signOut, resetPasswordForEmail, updatePassword }
 }

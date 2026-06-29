@@ -1,14 +1,18 @@
 import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { Zap, Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function AuthPage() {
-  const { signIn, signUp } = useAuth()
-  const [searchParams] = useSearchParams()
+  const { signIn, signUp, resetPasswordForEmail, updatePassword } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const inviteName = searchParams.get('invite')
-  const [mode, setMode] = useState<'login' | 'signup'>(inviteName ? 'signup' : 'login')
+  const modeParam = searchParams.get('mode')
+  const initialMode = modeParam === 'reset' ? 'reset' : (inviteName ? 'signup' : 'login')
+
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot' | 'reset'>(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [username, setUsername] = useState('')
@@ -21,10 +25,21 @@ export default function AuthPage() {
     try {
       if (mode === 'login') {
         await signIn(email, password)
-      } else {
+      } else if (mode === 'signup') {
         if (!username.trim()) { toast.error('Username required'); return }
         await signUp(email, password, username)
         toast.success('Account created! Check your email to confirm.')
+      } else if (mode === 'forgot') {
+        if (!email.trim()) { toast.error('Email required'); return }
+        await resetPasswordForEmail(email)
+        toast.success('Password reset email sent! Check your inbox.')
+        setMode('login')
+      } else if (mode === 'reset') {
+        if (!password.trim() || password.length < 6) { toast.error('Password must be at least 6 characters'); return }
+        await updatePassword(password)
+        toast.success('Password updated successfully! Logging you in...')
+        setSearchParams({})
+        navigate('/dashboard', { replace: true })
       }
     } catch (err: unknown) {
       toast.error((err as Error).message)
@@ -67,22 +82,31 @@ export default function AuthPage() {
             </div>
           )}
 
+          {/* Heading for forgot / reset modes */}
+          {(mode === 'forgot' || mode === 'reset') && (
+            <h2 className="text-center font-display text-xl font-bold text-[#dddaff] mb-6">
+              {mode === 'forgot' ? 'Reset Password' : 'Set New Password'}
+            </h2>
+          )}
+
           {/* Tab toggle */}
-          <div className="flex bg-[rgba(255,255,255,0.04)] rounded-xl p-1 mb-6">
-            {(['login', 'signup'] as const).map(m => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  mode === m
-                    ? 'bg-[rgba(108,99,255,0.25)] text-[#b9b5ff]'
-                    : 'text-[#666] hover:text-[#999]'
-                }`}
-              >
-                {m === 'login' ? 'Sign In' : 'Sign Up'}
-              </button>
-            ))}
-          </div>
+          {mode !== 'forgot' && mode !== 'reset' && (
+            <div className="flex bg-[rgba(255,255,255,0.04)] rounded-xl p-1 mb-6">
+              {(['login', 'signup'] as const).map(m => (
+                <button
+                  key={m}
+                  onClick={() => setMode(m)}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    mode === m
+                      ? 'bg-[rgba(108,99,255,0.25)] text-[#b9b5ff]'
+                      : 'text-[#666] hover:text-[#999]'
+                  }`}
+                >
+                  {m === 'login' ? 'Sign In' : 'Sign Up'}
+                </button>
+              ))}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'signup' && (
@@ -99,45 +123,74 @@ export default function AuthPage() {
               </div>
             )}
 
-            <div className="relative">
-              <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#555]" />
-              <input
-                type="email"
-                placeholder="Email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                className="input-field pl-10"
-                required
-              />
-            </div>
+            {mode !== 'reset' && (
+              <div className="relative">
+                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#555]" />
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  className="input-field pl-10"
+                  required
+                />
+              </div>
+            )}
 
-            <div className="relative">
-              <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#555]" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                className="input-field pl-10 pr-10"
-                required
-                minLength={6}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#555] hover:text-[#999]"
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
+            {mode !== 'forgot' && (
+              <div className="relative">
+                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#555]" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder={mode === 'reset' ? 'New Password' : 'Password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  className="input-field pl-10 pr-10"
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#555] hover:text-[#999]"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            )}
+
+            {mode === 'login' && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setMode('forgot')}
+                  className="text-xs text-[#6c63ff] hover:text-[#b9b5ff] transition-colors"
+                >
+                  Forgot Password?
+                </button>
+              </div>
+            )}
 
             <button
               type="submit"
               disabled={isLoading}
               className="btn-primary w-full mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Loading...' : mode === 'login' ? 'Enter the Arena' : 'Begin Your Journey'}
+              {isLoading ? 'Loading...' : 
+               mode === 'login' ? 'Enter the Arena' : 
+               mode === 'signup' ? 'Begin Your Journey' :
+               mode === 'forgot' ? 'Send Reset Link' : 'Update Password'}
             </button>
+
+            {(mode === 'forgot' || mode === 'reset') && (
+              <button
+                type="button"
+                onClick={() => setMode('login')}
+                className="text-xs text-[#666] hover:text-[#999] transition-colors block mx-auto mt-2"
+              >
+                Back to Sign In
+              </button>
+            )}
           </form>
         </div>
 

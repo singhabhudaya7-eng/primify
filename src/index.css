@@ -3,15 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --surface-0: #0a0a0f;
-  --surface-1: #0f0f18;
-  --surface-2: #16161f;
-  --surface-3: #1c1c28;
-  --border: rgba(255, 255, 255, 0.07);
-  --border-strong: rgba(255, 255, 255, 0.12);
-  --text-primary: #dddaff;
-  --text-secondary: #888;
-  --text-muted: #555;
+  --surface-0: #0a0a10;
+  --surface-1: #14141f;
+  --surface-2: #1b1b29;
+  --surface-3: #242433;
+  --border: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --text-primary: #e8e6ff;
+  --text-secondary: #a3a0bd;
+  --text-muted: #767394;
   --accent-void: #5548f5;
   --accent-void-light: #8b85ff;
   --accent-ember: #ff5c0a;
@@ -47,7 +47,7 @@ body {
 .stat-card {
   @apply rounded-2xl p-4;
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
 }
 
 /* ── Buttons ── */
@@ -70,17 +70,17 @@ body {
 
 .btn-ghost {
   @apply px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-150;
-  background: rgba(255, 255, 255, 0.05);
-  color: #888;
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.08);
+  color: #b5b2cf;
+  border: 1px solid var(--border-strong);
 }
-.btn-ghost:hover { background: rgba(255, 255, 255, 0.09); color: #bbb; }
+.btn-ghost:hover { background: rgba(255, 255, 255, 0.13); color: #e8e6ff; }
 
 /* ── Input ── */
 .input-field {
   @apply w-full rounded-xl px-3.5 py-2.5 text-sm outline-none transition-all duration-150;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-strong);
   color: var(--text-primary);
 }
 .input-field::placeholder { color: var(--text-muted); }
@@ -92,21 +92,59 @@ body {
 /* ── Badges ── */
 .badge-void {
   @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium;
-  background: rgba(108, 99, 255, 0.15);
-  color: #b9b5ff;
-  border: 1px solid rgba(108, 99, 255, 0.25);
+  background: rgba(108, 99, 255, 0.2);
+  color: #c7c3ff;
+  border: 1px solid rgba(108, 99, 255, 0.4);
 }
 .badge-gold {
   @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium;
-  background: rgba(255, 201, 0, 0.12);
+  background: rgba(255, 201, 0, 0.16);
   color: #ffd933;
-  border: 1px solid rgba(255, 201, 0, 0.2);
+  border: 1px solid rgba(255, 201, 0, 0.35);
 }
+
+/* ── Range slider ── */
+.range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+  cursor: pointer;
+}
+.range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--accent-void-light);
+  box-shadow: 0 0 0 4px rgba(139, 133, 255, 0.25), 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: box-shadow 0.15s, transform 0.15s;
+  margin-top: -6px;
+}
+.range-slider:hover::-webkit-slider-thumb {
+  box-shadow: 0 0 0 6px rgba(139, 133, 255, 0.3), 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.range-slider:active::-webkit-slider-thumb { transform: scale(1.1); }
+.range-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--accent-void-light);
+  box-shadow: 0 0 0 4px rgba(139, 133, 255, 0.25), 0 2px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+.range-slider:disabled { opacity: 0.5; cursor: not-allowed; }
+.range-slider:disabled::-webkit-slider-thumb { box-shadow: none; }
 
 /* ── Progress track ── */
 .progress-track {
   @apply w-full rounded-full overflow-hidden;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* ── Habit row ── */
